@@ -18,6 +18,9 @@ export function BookingPanel() {
   const pmsRooms = useMemo(() => pms?.rooms ?? [], [pms]);
   const pmsMeals = useMemo(() => pms?.mealPlans ?? [], [pms]);
 
+  const [guestName, setGuestName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
   const [guests, setGuests] = useState(2);
@@ -30,6 +33,10 @@ export function BookingPanel() {
   useEffect(() => {
     if (show && !pms) fetchPms();
   }, [show, pms, fetchPms]);
+
+  useEffect(() => {
+    if (!roomId && pmsRooms.length > 0) setRoomId(String(pmsRooms[0].id));
+  }, [pmsRooms, roomId]);
 
   const nights = useMemo(() => {
     if (!checkIn || !checkOut) return 1;
@@ -56,9 +63,9 @@ export function BookingPanel() {
     setError("");
     try {
       const payload = {
-        guestName: "",
-        phone: "",
-        email: "",
+        guestName,
+        phone,
+        email,
         roomId: roomId,
         mealCode: mealCode,
         adults: guests,
@@ -150,6 +157,38 @@ export function BookingPanel() {
                   </div>
                 ) : !submitted ? (
                   <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                      <Field label="Your name">
+                        <input
+                          type="text"
+                          value={guestName}
+                          onChange={(e) => setGuestName(e.target.value)}
+                          placeholder="Full name"
+                          required
+                          className="booking-input"
+                        />
+                      </Field>
+                      <Field label="Phone">
+                        <input
+                          type="tel"
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value)}
+                          placeholder="+91 98765 43210"
+                          required
+                          className="booking-input"
+                        />
+                      </Field>
+                      <Field label="Email">
+                        <input
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="you@example.com"
+                          required
+                          className="booking-input"
+                        />
+                      </Field>
+                    </div>
                     <div className="grid grid-cols-2 gap-4">
                       <Field label="Check-in">
                         <input

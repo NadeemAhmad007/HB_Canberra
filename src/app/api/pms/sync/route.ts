@@ -110,6 +110,15 @@ export async function POST(request: Request) {
     const msg = error instanceof Error ? error.message : "Unknown error";
     await logSync("error", msg);
     console.error("[PMS] Sync error:", msg);
+
+    // Check if it's the Apps Script setStatusCode bug
+    if (msg.includes("setStatusCode") || msg.includes("is not a function")) {
+      return NextResponse.json({
+        error: "Apps Script needs redeploying. Open your sheet → Extensions → Apps Script → Deploy → Manage Deployments → Edit → Deploy the latest Code.gs from scripts/pms/Code.gs",
+        hint: "Copy scripts/pms/Code.gs content into the Apps Script editor, save, then deploy as Web App (Execute as: Me, Access: Anyone)",
+      }, { status: 500 });
+    }
+
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
