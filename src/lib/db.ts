@@ -83,27 +83,27 @@ export async function upsertRooms(rooms: Room[]) {
 /** How many units of a room are available (not booked + not blocked) for a date range */
 export async function getAvailableUnits(roomId: number, checkIn: string, checkOut: string): Promise<number> {
   const sql = getSql();
-  const total: Array<{ units: number }> = await sql`SELECT units FROM rooms WHERE id = ${roomId}`;
+  const total = await sql`SELECT units FROM rooms WHERE id = ${roomId}` as unknown as Array<{ units: number }>;
   if (!total || !total[0]) return 0;
 
   // Count units already booked in overlapping date ranges
-  const booked: Array<{ booked: number }> = await sql`
+  const booked = await sql`
     SELECT COALESCE(SUM(units), 0) as booked
     FROM bookings
     WHERE room_id = ${roomId}
       AND status != 'cancelled'
       AND check_in < ${checkOut}::date
       AND check_out > ${checkIn}::date
-  `;
+  ` as unknown as Array<{ booked: number }>;
 
   // Count blocked dates that cover ANY day in the range
-  const blockedDays: Array<{ days: number }> = await sql`
+  const blockedDays = await sql`
     SELECT COUNT(DISTINCT date) as days
     FROM blocked_dates
     WHERE room_id = ${roomId}
       AND date >= ${checkIn}::date
       AND date < ${checkOut}::date
-  `;
+  ` as unknown as Array<{ days: number }>;
 
   // If any day in the range is fully blocked, mark 0 available
   const nights = Math.max(1, Math.round(
@@ -120,7 +120,7 @@ export async function getAvailableUnits(roomId: number, checkIn: string, checkOu
 /** Get total units for a room type */
 export async function getTotalUnits(roomId: number): Promise<number> {
   const sql = getSql();
-  const rows: Array<{ units: number }> = await sql`SELECT units FROM rooms WHERE id = ${roomId}`;
+  const rows = await sql`SELECT units FROM rooms WHERE id = ${roomId}` as unknown as Array<{ units: number }>;
   return rows?.[0]?.units ?? 0;
 }
 
@@ -161,7 +161,7 @@ export async function replaceMealPlans(plans: MealPlan[]) {
 // ── Property config ──────────────────────────────────────────────────────
 export async function getPropertyConfig(): Promise<Record<string, string>> {
   const sql = getSql();
-  const rows: Array<{ key: string; value: string }> = await sql`SELECT key, value FROM property_config`;
+  const rows = await sql`SELECT key, value FROM property_config` as unknown as Array<{ key: string; value: string }>;
   const map: Record<string, string> = {};
   for (const r of rows) {
     map[r.key] = r.value;
@@ -223,7 +223,7 @@ export async function createBooking(b: Omit<Booking, "id" | "created_at">) {
     INSERT INTO bookings (booking_ref, guest_name, phone, email, room_id, meal_code, adults, children, units, check_in, check_out, nights, amount, currency, stripe_payment_intent, status, invoice_url)
     VALUES (${b.booking_ref}, ${b.guest_name}, ${b.phone}, ${b.email}, ${b.room_id}, ${b.meal_code}, ${b.adults}, ${b.children}, ${b.units}, ${b.check_in}, ${b.check_out}, ${b.nights}, ${b.amount}, ${b.currency}, ${b.stripe_payment_intent}, ${b.status}, ${b.invoice_url})
     RETURNING id, created_at
-  `;
+  ` as unknown as Array<{ id: string; created_at: string }>;
   return row;
 }
 
