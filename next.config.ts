@@ -8,6 +8,9 @@ const nextConfig: NextConfig = {
     qualities: [50, 75, 90],
   },
   allowedDevOrigins: ["192.168.178.22"],
+  turbopack: {
+    root: process.cwd(),
+  },
 };
 
 export default nextConfig;
