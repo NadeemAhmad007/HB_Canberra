@@ -112,31 +112,37 @@ export async function POST(request: Request) {
 
     const ref = "HBC-" + new Date().toISOString().slice(0, 10).replace(/-/g, "") + "-" + String(Math.floor(Math.random() * 900) + 100);
 
-    // Always write to Neon first
-    await createBooking({
-      booking_ref: ref,
-      guest_name: guestName || "Guest",
-      phone: phone || "",
-      email: email || "",
-      room_id: parseInt(String(roomId)),
-      meal_code: mealCode || "",
-      adults: adults || 1,
-      children: children || 0,
-      units: units || 1,
-      check_in: checkIn,
-      check_out: checkOut,
-      nights: nights || 1,
-      amount: amount || 0,
-      currency: "INR",
-      stripe_payment_intent: "",
-      status: "pending",
-      invoice_url: "",
-    });
+    // Try Neon first, fall back to Google Sheets
+    let savedTo = "nowhere";
+    try {
+      await createBooking({
+        booking_ref: ref,
+        guest_name: guestName || "Guest",
+        phone: phone || "",
+        email: email || "",
+        room_id: parseInt(String(roomId)),
+        meal_code: mealCode || "",
+        adults: adults || 1,
+        children: children || 0,
+        units: units || 1,
+        check_in: checkIn,
+        check_out: checkOut,
+        nights: nights || 1,
+        amount: amount || 0,
+        currency: "INR",
+        stripe_payment_intent: "",
+        status: "pending",
+        invoice_url: "",
+      });
+      savedTo = "neon";
+    } catch {
+      console.warn("[PMS] Neon write failed, trying Sheets...");
+    }
 
-    // Best-effort sync to Google Sheets via Apps Script
-    if (APPS_SCRIPT_URL && APPS_SCRIPT_TOKEN) {
+    // If Neon failed, try Google Sheets
+    if (savedTo !== "neon" && APPS_SCRIPT_URL && APPS_SCRIPT_TOKEN) {
       try {
-        await fetch(APPS_SCRIPT_URL, {
+        const sheetRes = await fetch(APPS_SCRIPT_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -156,9 +162,17 @@ export async function POST(request: Request) {
             status: "pending",
           }),
         });
+        if (sheetRes.ok) savedTo = "sheets";
       } catch {
-        console.warn("[PMS] Sheets write failed — booking saved in Neon");
+        console.warn("[PMS] Sheets write also failed");
       }
+    }
+
+    if (savedTo === "nowhere") {
+      return NextResponse.json(
+        { error: "Could not save booking — database and sheet both unreachable" },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
