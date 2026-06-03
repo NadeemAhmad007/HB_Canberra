@@ -57,7 +57,7 @@ interface SceneState {
   toggleRoom: (id?: string | null) => void;
   toggleSound: () => void;
   toggleFreeLook: () => void;
-  fetchPms: () => Promise<void>;
+  fetchPms: (checkIn?: string, checkOut?: string) => Promise<void>;
 }
 
 export const useStore = create<SceneState>((set) => ({
