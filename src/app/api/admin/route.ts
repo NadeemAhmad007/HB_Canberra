@@ -13,6 +13,13 @@ import {
   createBooking,
   getBlockedDates,
 } from "@/lib/db";
+import { neon } from "@neondatabase/serverless";
+
+function getSql() {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error("DATABASE_URL not configured");
+  return neon(url);
+}
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -57,6 +64,23 @@ export async function GET(request: Request) {
       case "blocked-dates": {
         const blocked = await getBlockedDates();
         return NextResponse.json(blocked);
+      }
+      case "guests": {
+        const sql = getSql();
+        const guests = await sql`SELECT * FROM guests ORDER BY updated_at DESC` as unknown;
+        return NextResponse.json(guests);
+      }
+      case "notifications": {
+        const sql = getSql();
+        const notifications = await sql`SELECT * FROM notifications ORDER BY created_at DESC LIMIT 50` as unknown;
+        return NextResponse.json(notifications);
+      }
+      case "settings": {
+        const sql = getSql();
+        const rows = await sql`SELECT * FROM settings ORDER BY key` as unknown as Array<{ key: string; value: string }>;
+        const map: Record<string, string> = {};
+        for (const r of rows) map[r.key] = r.value;
+        return NextResponse.json(map);
       }
       case "dashboard": {
         const [bookings, rooms, seasons, meals, config] = await Promise.all([
