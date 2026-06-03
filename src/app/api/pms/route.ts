@@ -131,30 +131,34 @@ export async function POST(request: Request) {
       stripe_payment_intent: "",
       status: "pending",
       invoice_url: "",
-    }).catch((e) => console.error("[PMS] Neon write failed:", e));
+    });
 
     // Best-effort sync to Google Sheets via Apps Script
-    if (APPS_SCRIPT_URL) {
-      fetch(APPS_SCRIPT_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          token: APPS_SCRIPT_TOKEN,
-          guestName,
-          phone,
-          email,
-          roomId,
-          mealCode,
-          adults,
-          children,
-          units,
-          checkIn,
-          checkOut,
-          nights,
-          amount,
-          status: "pending",
-        }),
-      }).catch(() => {}); // fire-and-forget
+    if (APPS_SCRIPT_URL && APPS_SCRIPT_TOKEN) {
+      try {
+        await fetch(APPS_SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            token: APPS_SCRIPT_TOKEN,
+            guestName,
+            phone,
+            email,
+            roomId,
+            mealCode,
+            adults,
+            children,
+            units,
+            checkIn,
+            checkOut,
+            nights,
+            amount,
+            status: "pending",
+          }),
+        });
+      } catch {
+        console.warn("[PMS] Sheets write failed — booking saved in Neon");
+      }
     }
 
     return NextResponse.json({
