@@ -83,11 +83,11 @@ export async function upsertRooms(rooms: Room[]) {
 /** How many units of a room are available (not booked + not blocked) for a date range */
 export async function getAvailableUnits(roomId: number, checkIn: string, checkOut: string): Promise<number> {
   const sql = getSql();
-  const [total] = await sql`SELECT units FROM rooms WHERE id = ${roomId}` as unknown as Promise<Array<{ units: number }>>;
-  if (!total) return 0;
+  const total = await sql`SELECT units FROM rooms WHERE id = ${roomId}` as unknown as Promise<Array<{ units: number }>>;
+  if (!total || !total[0]) return 0;
 
   // Count units already booked in overlapping date ranges
-  const [booked] = await sql`
+  const booked = await sql`
     SELECT COALESCE(SUM(units), 0) as booked
     FROM bookings
     WHERE room_id = ${roomId}
@@ -97,7 +97,7 @@ export async function getAvailableUnits(roomId: number, checkIn: string, checkOu
   ` as unknown as Promise<Array<{ booked: number }>>;
 
   // Count blocked dates that cover ANY day in the range
-  const [blockedDays] = await sql`
+  const blockedDays = await sql`
     SELECT COUNT(DISTINCT date) as days
     FROM blocked_dates
     WHERE room_id = ${roomId}
@@ -110,15 +110,18 @@ export async function getAvailableUnits(roomId: number, checkIn: string, checkOu
     (+new Date(checkOut) - +new Date(checkIn)) / (1000 * 60 * 60 * 24)
   ));
 
-  const available = total.units - Number(booked?.booked ?? 0);
-  return blockedDays?.days && blockedDays.days >= nights ? 0 : Math.max(0, available);
+  const un = total[0].units;
+  const bk = Number(booked?.[0]?.booked ?? 0);
+  const bl = blockedDays?.[0]?.days ?? 0;
+  const available = un - bk;
+  return bl >= nights ? 0 : Math.max(0, available);
 }
 
 /** Get total units for a room type */
 export async function getTotalUnits(roomId: number): Promise<number> {
   const sql = getSql();
-  const [row] = await sql`SELECT units FROM rooms WHERE id = ${roomId}` as unknown as Promise<Array<{ units: number }>>;
-  return row?.units ?? 0;
+  const rows = await sql`SELECT units FROM rooms WHERE id = ${roomId}` as unknown as Promise<Array<{ units: number }>>;
+  return rows?.[0]?.units ?? 0;
 }
 
 // ── Seasons ──────────────────────────────────────────────────────────────
