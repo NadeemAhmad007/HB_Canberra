@@ -47,6 +47,8 @@ export async function POST(request: Request) {
       room_id: parseInt(metadata.room_id || "1"),
       meal_code: metadata.meal_code || "",
       adults: parseInt(metadata.adults || "2"),
+      children: parseInt(metadata.children || "0"),
+      units: parseInt(metadata.units || "1"),
       check_in: metadata.check_in || "",
       check_out: metadata.check_out || "",
       nights: parseInt(metadata.nights || "1"),
