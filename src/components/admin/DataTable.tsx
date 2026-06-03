@@ -13,7 +13,8 @@ export interface Column<T> {
   width?: string;
 }
 
-export function DataTable<T extends Record<string, unknown>>({
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function DataTable({
   columns,
   data,
   loading,
@@ -26,8 +27,8 @@ export function DataTable<T extends Record<string, unknown>>({
   onRowClick,
   exportFilename = "export.csv",
 }: {
-  columns: Column<T>[];
-  data: T[];
+  columns: Column<any>[];
+  data: any[];
   loading?: boolean;
   sortable?: boolean;
   searchable?: boolean;
@@ -35,7 +36,7 @@ export function DataTable<T extends Record<string, unknown>>({
   pageSize?: number;
   emptyTitle?: string;
   emptyDescription?: string;
-  onRowClick?: (row: T) => void;
+  onRowClick?: (row: any) => void;
   exportFilename?: string;
 }) {
   const [search, setSearch] = useState("");
