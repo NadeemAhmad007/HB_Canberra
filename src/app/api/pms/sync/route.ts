@@ -82,8 +82,8 @@ export async function POST(request: Request) {
           name: r.Room_Type,
           units: parseInt(r.Total_Units) || 1,
           base_price: r.basePrice,
-          max_adults: parseInt(r.Max_Adults) || 2,
-          max_children: parseInt(r.Max_Children) || 2,
+          max_adults: parseInt(r.Max_Adults || "2") || 2,
+          max_children: parseInt(r.Max_Children || "2") || 2,
           child_policy: r.Child_Policy || "",
         }))
       ),
