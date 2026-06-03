@@ -1,26 +1,106 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0A0D0C;
+  --foreground: #E9DFCE;
+  --accent: #C8A86B;
+  --accent-soft: #F5D08C;
+  --brand-navy: #0A1F44;
+  --brand-navy-soft: #1A2A5A;
+  --brand-gold: #C8A86B;
+
+  --font-display: "Cormorant Garamond", "EB Garamond", "Italiana", "Didot",
+    "Bodoni 72", "Times New Roman", Times, serif;
+  --font-body: "Inter", "Helvetica Neue", system-ui, -apple-system,
+    "Segoe UI", Roboto, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-brand-navy: var(--brand-navy);
+  --color-brand-navy-soft: var(--brand-navy-soft);
+  --color-brand-gold: var(--brand-gold);
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+html,
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  overscroll-behavior: none;
+}
+
+body {
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(200, 168, 107, 0.35);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(200, 168, 107, 0.6);
+}
+* {
+  scrollbar-color: rgba(200, 168, 107, 0.35) transparent;
+  scrollbar-width: thin;
+}
+
+::selection {
+  background: rgba(200, 168, 107, 0.4);
+  color: white;
+}
+
+.booking-input {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.75rem 1rem;
+  color: white;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  transition: border-color 0.3s, background 0.3s;
+  outline: none;
+}
+.booking-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+.booking-input:focus {
+  border-color: rgba(200, 168, 107, 0.55);
+  background: rgba(255, 255, 255, 0.05);
+}
+.booking-input option {
+  background: #0A0D0C;
+  color: white;
+}
+.booking-input::-webkit-calendar-picker-indicator {
+  filter: invert(0.7) brightness(1.1);
+  cursor: pointer;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 1px solid rgba(200, 168, 107, 0.7);
+  outline-offset: 2px;
+  border-radius: 9999px;
+}
+
+canvas {
+  display: block;
+  outline: none;
 }

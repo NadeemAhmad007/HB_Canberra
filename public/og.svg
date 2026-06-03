@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0A1F44"/>
+      <stop offset="55%" stop-color="#1A2A5A"/>
+      <stop offset="100%" stop-color="#2A1A0A"/>
+    </linearGradient>
+    <linearGradient id="water" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1A2A5A"/>
+      <stop offset="100%" stop-color="#0A1F44"/>
+    </linearGradient>
+    <radialGradient id="moon" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#F5D08C"/>
+      <stop offset="70%" stop-color="#C8A86B"/>
+      <stop offset="100%" stop-color="#C8A86B" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#sky)"/>
+
+  <circle cx="900" cy="180" r="80" fill="url(#moon)" opacity="0.9"/>
+  <circle cx="900" cy="180" r="40" fill="#F5D08C" opacity="0.95"/>
+
+  <path d="M 0 380 Q 300 360 600 380 T 1200 380 L 1200 460 Q 900 480 600 460 T 0 460 Z" fill="url(#water)" opacity="0.95"/>
+
+  <g opacity="0.85" transform="translate(0 380)">
+    <ellipse cx="900" cy="40" rx="120" ry="3" fill="#C8A86B" opacity="0.4"/>
+    <ellipse cx="900" cy="55" rx="80" ry="2" fill="#C8A86B" opacity="0.3"/>
+    <ellipse cx="900" cy="68" rx="50" ry="1.5" fill="#C8A86B" opacity="0.2"/>
+  </g>
+
+  <g transform="translate(380 340)">
+    <path d="M -180 -4 L 180 -4 L 140 32 L -140 32 Z" fill="#0A1F44" stroke="#C8A86B" stroke-width="0.6"/>
+    <path d="M -180 -4 L 180 -4 L 160 -22 L -160 -22 Z" fill="#0F1A3A" stroke="#C8A86B" stroke-width="0.6"/>
+    <rect x="-30" y="-22" width="60" height="22" fill="#F5D08C" opacity="0.7"/>
+    <line x1="0" y1="-22" x2="0" y2="32" stroke="#C8A86B" stroke-width="0.4" opacity="0.4"/>
+    <line x1="-90" y1="-22" x2="-90" y2="32" stroke="#C8A86B" stroke-width="0.4" opacity="0.3"/>
+    <line x1="90" y1="-22" x2="90" y2="32" stroke="#C8A86B" stroke-width="0.4" opacity="0.3"/>
+    <path d="M -180 32 Q -200 50 -160 56 M 180 32 Q 200 50 160 56" fill="none" stroke="#C8A86B" stroke-width="1.4" stroke-linecap="round" opacity="0.85"/>
+  </g>
+
+  <g opacity="0.5">
+    <circle cx="150" cy="120" r="1" fill="#F5D08C"/>
+    <circle cx="450" cy="80" r="0.8" fill="#F5D08C"/>
+    <circle cx="700" cy="140" r="1" fill="#F5D08C"/>
+    <circle cx="1080" cy="60" r="1" fill="#F5D08C"/>
+    <circle cx="200" cy="260" r="0.8" fill="#F5D08C"/>
+  </g>
+
+  <g transform="translate(80 140)">
+    <text x="0" y="0" font-family="serif" font-size="14" fill="#C8A86B" letter-spacing="6" opacity="0.85">EST. 1980 · DAL LAKE</text>
+    <text x="0" y="80" font-family="serif" font-size="86" font-weight="300" fill="white" letter-spacing="-1">Houseboat</text>
+    <text x="0" y="160" font-family="serif" font-size="86" font-weight="300" fill="#C8A86B" letter-spacing="-1">Canberra</text>
+    <text x="0" y="220" font-family="serif" font-size="20" font-style="italic" fill="white" opacity="0.75">A heritage sanctuary on the still waters of Dal Lake</text>
+    <line x1="0" y1="260" x2="120" y2="260" stroke="#C8A86B" stroke-width="1"/>
+    <text x="0" y="295" font-family="sans-serif" font-size="14" fill="white" opacity="0.6" letter-spacing="3">S R I N A G A R &#160;·&#160; K A S H M I R</text>
+  </g>
+</svg>
