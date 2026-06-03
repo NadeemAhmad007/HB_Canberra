@@ -7,9 +7,7 @@ const nextConfig: NextConfig = {
     formats: ["image/avif", "image/webp"],
     qualities: [50, 75, 90],
   },
-  turbopack: {
-    root: path.join(__dirname),
-  },
+  allowedDevOrigins: ["192.168.178.22"],
 };
 
 export default nextConfig;
