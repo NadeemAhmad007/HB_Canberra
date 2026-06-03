@@ -1,6 +1,6 @@
 {
   "crons": [{
     "path": "/api/pms/sync",
-    "schedule": "*/5 * * * *"
+    "schedule": "0 6 * * *"
   }]
 }
