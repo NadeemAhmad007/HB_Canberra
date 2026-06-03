@@ -20,16 +20,17 @@ var GIDS = {
 
 // Auth token — passed as ?token= in every request.
 // Change this to a random string and keep secret.
-var AUTH_TOKEN = "CHANGE_ME_TO_A_RANDOM_SECRET";
+var AUTH_TOKEN = "Ghulam_Nabi_Kolu";
 
 // ── doGet: Read all PMS data ──────────────────────────────────────────────
 function doGet(e) {
   if (e?.parameter?.token !== AUTH_TOKEN) {
-    return jsonResponse(403, { error: "Unauthorized" });
+    return jsonResponse(403, { ok: false, error: "Unauthorized" });
   }
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var data = {
+      ok: true,
       property:    sheetToKeyValue(ss, GIDS.PROPERTY_CONFIG),
       rooms:       sheetToObjects(ss, GIDS.ROOM_INVENTORY),
       rates:       sheetToObjects(ss, GIDS.BASE_RATES),
@@ -48,14 +49,14 @@ function doGet(e) {
     data.blockedDates = fetchAllBlockedDates(data.calendars);
     return jsonResponse(200, data);
   } catch (err) {
-    return jsonResponse(500, { error: err.message });
+    return jsonResponse(500, { ok: false, error: err.message });
   }
 }
 
 // ── doPost: Write a new booking ──────────────────────────────────────────
 function doPost(e) {
   if (e?.parameter?.token !== AUTH_TOKEN) {
-    return jsonResponse(403, { error: "Unauthorized" });
+    return jsonResponse(403, { ok: false, error: "Unauthorized" });
   }
   try {
     var body = JSON.parse(e.postData.contents);
@@ -79,9 +80,9 @@ function doPost(e) {
       new Date().toISOString(),
     ];
     sheet.appendRow(row);
-    return jsonResponse(200, { bookingId: nextId, status: "received" });
+    return jsonResponse(200, { ok: true, bookingId: nextId, status: "received" });
   } catch (err) {
-    return jsonResponse(500, { error: err.message });
+    return jsonResponse(500, { ok: false, error: err.message });
   }
 }
 
@@ -159,8 +160,9 @@ function sheetToObjects(ss, gid) {
 }
 
 function jsonResponse(code, data) {
+  // Always return with status info in the body — ContentService
+  // does not support custom HTTP status codes.
   return ContentService
     .createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setStatusCode(code);
+    .setMimeType(ContentService.MimeType.JSON);
 }
