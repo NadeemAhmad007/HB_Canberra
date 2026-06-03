@@ -40,6 +40,11 @@ export function BookingPanel() {
     if (!roomId && pmsRooms.length > 0) setRoomId(String(pmsRooms[0].id));
   }, [pmsRooms, roomId]);
 
+  // Refetch availability when dates change
+  useEffect(() => {
+    if (checkIn && checkOut && show) fetchPms(checkIn, checkOut);
+  }, [checkIn, checkOut, show, fetchPms]);
+
   const nights = useMemo(() => {
     if (!checkIn || !checkOut) return 1;
     const a = new Date(checkIn);
@@ -57,13 +62,17 @@ export function BookingPanel() {
   const subtotal = roomTotal + mealTotal;
   const taxes = Math.round(subtotal * GST_RATE);
   const total = subtotal + taxes;
-  const maxUnits = selectedRoom?.units ?? 1;
+  const maxUnits = selectedRoom?.availableUnits ?? selectedRoom?.units ?? 1;
 
   const minDate = new Date().toISOString().slice(0, 10);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRoom) return;
+    if (units > (selectedRoom.availableUnits ?? selectedRoom.units)) {
+      setError("Not enough units available for the selected dates");
+      return;
+    }
     setSubmitting(true);
     setError("");
     try {
@@ -252,11 +261,14 @@ export function BookingPanel() {
                         onChange={(e) => { setRoomId(e.target.value); setUnits(1); }}
                         className="booking-input"
                       >
-                        {pmsRooms.map((r) => (
-                          <option key={r.id} value={r.id} className="bg-black">
-                            {r.name} — {formatPrice(r.currentPrice, "INR")}/night ({r.units} available)
-                          </option>
-                        ))}
+                        {pmsRooms.map((r) => {
+                            const avail = r.availableUnits ?? r.units;
+                            return (
+                              <option key={r.id} value={r.id} className="bg-black" disabled={avail === 0}>
+                                {r.name} — {formatPrice(r.currentPrice, "INR")}/night {avail > 0 ? `(${avail} left)` : "(sold out)"}
+                              </option>
+                            );
+                          })}
                       </select>
                     </Field>
 

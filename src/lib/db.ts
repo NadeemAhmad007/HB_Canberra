@@ -79,6 +79,48 @@ export async function upsertRooms(rooms: Room[]) {
   }
 }
 
+// ── Availability ─────────────────────────────────────────────────────────
+/** How many units of a room are available (not booked + not blocked) for a date range */
+export async function getAvailableUnits(roomId: number, checkIn: string, checkOut: string): Promise<number> {
+  const sql = getSql();
+  const [total] = await sql`SELECT units FROM rooms WHERE id = ${roomId}` as unknown as Promise<Array<{ units: number }>>;
+  if (!total) return 0;
+
+  // Count units already booked in overlapping date ranges
+  const [booked] = await sql`
+    SELECT COALESCE(SUM(units), 0) as booked
+    FROM bookings
+    WHERE room_id = ${roomId}
+      AND status != 'cancelled'
+      AND check_in < ${checkOut}::date
+      AND check_out > ${checkIn}::date
+  ` as unknown as Promise<Array<{ booked: number }>>;
+
+  // Count blocked dates that cover ANY day in the range
+  const [blockedDays] = await sql`
+    SELECT COUNT(DISTINCT date) as days
+    FROM blocked_dates
+    WHERE room_id = ${roomId}
+      AND date >= ${checkIn}::date
+      AND date < ${checkOut}::date
+  ` as unknown as Promise<Array<{ days: number }>>;
+
+  // If any day in the range is fully blocked, mark 0 available
+  const nights = Math.max(1, Math.round(
+    (+new Date(checkOut) - +new Date(checkIn)) / (1000 * 60 * 60 * 24)
+  ));
+
+  const available = total.units - Number(booked?.booked ?? 0);
+  return blockedDays?.days && blockedDays.days >= nights ? 0 : Math.max(0, available);
+}
+
+/** Get total units for a room type */
+export async function getTotalUnits(roomId: number): Promise<number> {
+  const sql = getSql();
+  const [row] = await sql`SELECT units FROM rooms WHERE id = ${roomId}` as unknown as Promise<Array<{ units: number }>>;
+  return row?.units ?? 0;
+}
+
 // ── Seasons ──────────────────────────────────────────────────────────────
 export async function getSeasons(): Promise<Season[]> {
   const sql = getSql();

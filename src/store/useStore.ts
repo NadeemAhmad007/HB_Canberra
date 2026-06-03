@@ -6,6 +6,7 @@ export interface PmsRoom {
   id: number;
   name: string;
   units: number;
+  availableUnits: number;
   basePrice: number;
   currentPrice: number;
   maxAdults: number;
@@ -94,10 +95,11 @@ export const useStore = create<SceneState>((set) => ({
     })),
   toggleSound: () => set((s) => ({ soundEnabled: !s.soundEnabled })),
   toggleFreeLook: () => set((s) => ({ freeLook: !s.freeLook })),
-  fetchPms: async () => {
+  fetchPms: async (checkIn?: string, checkOut?: string) => {
     set({ pmsLoading: true });
     try {
-      const res = await fetch("/api/pms");
+      const params = checkIn && checkOut ? `?checkIn=${checkIn}&checkOut=${checkOut}` : "";
+      const res = await fetch(`/api/pms${params}`);
       if (!res.ok) throw new Error("Failed to fetch PMS");
       const data: PmsData = await res.json();
       set({ pms: data, pmsLoading: false });

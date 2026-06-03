@@ -6,6 +6,7 @@ import {
   getPropertyConfig,
   getBlockedDates,
   createBooking,
+  getAvailableUnits,
 } from "@/lib/db";
 
 const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
@@ -29,8 +30,12 @@ const FALLBACK_MEALS = [
 /**
  * GET /api/pms — returns all PMS data for the front-end.
  * Always returns data — falls back to hardcoded defaults when DB is unavailable.
+ * Optional query params: checkIn, checkOut — returns availableUnits per room.
  */
-export async function GET() {
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const checkIn = url.searchParams.get("checkIn");
+  const checkOut = url.searchParams.get("checkOut");
   let dbRooms: (typeof FALLBACK_ROOMS)[number][] = [];
   let dbSeasons: (typeof FALLBACK_SEASONS)[number][] = [];
   let dbMeals: (typeof FALLBACK_MEALS)[number][] = [];
@@ -64,7 +69,7 @@ export async function GET() {
   }
 
   const today = new Date().toISOString().slice(0, 10);
-  const roomsWithPrices = activeRooms.map((r) => {
+  const roomsWithPrices = await Promise.all(activeRooms.map(async (r) => {
     let multiplier = 1;
     for (const s of activeSeasons) {
       if (today >= s.start_date && today <= s.end_date) {
@@ -72,17 +77,22 @@ export async function GET() {
         break;
       }
     }
+    let availableUnits = r.units;
+    if (checkIn && checkOut && !useFallback) {
+      availableUnits = await getAvailableUnits(r.id, checkIn, checkOut).catch(() => r.units);
+    }
     return {
       id: r.id,
       name: r.name,
       units: r.units,
+      availableUnits,
       basePrice: r.base_price,
       currentPrice: Math.round(r.base_price * multiplier),
       maxAdults: r.max_adults,
       maxChildren: r.max_children,
       childPolicy: r.child_policy,
     };
-  });
+  }));
 
   return NextResponse.json({
     property: activeProperty,
