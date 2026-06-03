@@ -28,69 +28,67 @@ const FALLBACK_MEALS = [
 
 /**
  * GET /api/pms — returns all PMS data for the front-end.
- * Used by the store on page load to hydrate rooms, rates, seasons, etc.
+ * Always returns data — falls back to hardcoded defaults when DB is unavailable.
  */
 export async function GET() {
+  let dbRooms: { id: number; name: string; units: number; base_price: number }[] = [];
+  let dbSeasons: { start_date: string; end_date: string; multiplier: number }[] = [];
+  let dbMeals: { code: string; name: string; price: number }[] = [];
+  let dbProperty: Record<string, string> = {};
+  let dbBlocked: { room_id: number; date: string }[] = [];
+
   try {
-    const [rooms, seasons, mealPlans, property, blockedDates] =
-      await Promise.all([
-        getRooms(),
-        getSeasons(),
-        getMealPlans(),
-        getPropertyConfig(),
-        getBlockedDates(),
-      ]);
-
-    // If DB is empty, return fallback data from known sheet values
-    const useFallback = rooms.length === 0;
-    const activeRooms = useFallback ? FALLBACK_ROOMS : rooms;
-    const activeSeasons = useFallback ? FALLBACK_SEASONS : seasons;
-    const activeMeals = useFallback ? FALLBACK_MEALS : mealPlans;
-    const activeProperty = useFallback
-      ? { GST: "18", NAME: "Houseboat Canberra", ADDRESS: "Dal Lake, Srinagar" }
-      : property;
-
-    // Build blocked dates map
-    const blocked: Record<number, string[]> = {};
-    for (const b of blockedDates) {
-      if (!blocked[b.room_id]) blocked[b.room_id] = [];
-      blocked[b.room_id].push(b.date);
-    }
-
-    // Compute current price per room (apply seasonal multiplier)
-    const today = new Date().toISOString().slice(0, 10);
-    const roomsWithPrices = activeRooms.map((r) => {
-      let multiplier = 1;
-      for (const s of activeSeasons) {
-        if (today >= s.start_date && today <= s.end_date) {
-          multiplier = Number(s.multiplier);
-          break;
-        }
-      }
-      return {
-        id: r.id,
-        name: r.name,
-        units: r.units,
-        basePrice: r.base_price,
-        currentPrice: Math.round(r.base_price * multiplier),
-      };
-    });
-
-    return NextResponse.json({
-      property: activeProperty,
-      rooms: roomsWithPrices,
-      seasons: activeSeasons,
-      mealPlans: activeMeals,
-      blockedDates: blocked,
-      _fallback: useFallback,
-    });
-  } catch (error) {
-    console.error("[PMS] GET error:", error);
-    return NextResponse.json(
-      { error: "Failed to load PMS data" },
-      { status: 500 }
-    );
+    [dbRooms, dbSeasons, dbMeals, dbProperty, dbBlocked] = await Promise.all([
+      getRooms().catch(() => []),
+      getSeasons().catch(() => []),
+      getMealPlans().catch(() => []),
+      getPropertyConfig().catch(() => ({})),
+      getBlockedDates().catch(() => []),
+    ]);
+  } catch {
+    // all failed — use fallback
   }
+
+  const useFallback = dbRooms.length === 0;
+  const activeRooms = useFallback ? FALLBACK_ROOMS : dbRooms;
+  const activeSeasons = useFallback ? FALLBACK_SEASONS : dbSeasons;
+  const activeMeals = useFallback ? FALLBACK_MEALS : dbMeals;
+  const activeProperty = useFallback
+    ? { GST: "18", NAME: "Houseboat Canberra", ADDRESS: "Dal Lake, Srinagar" }
+    : dbProperty;
+
+  const blocked: Record<number, string[]> = {};
+  for (const b of dbBlocked) {
+    if (!blocked[b.room_id]) blocked[b.room_id] = [];
+    blocked[b.room_id].push(b.date);
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const roomsWithPrices = activeRooms.map((r) => {
+    let multiplier = 1;
+    for (const s of activeSeasons) {
+      if (today >= s.start_date && today <= s.end_date) {
+        multiplier = Number(s.multiplier);
+        break;
+      }
+    }
+    return {
+      id: r.id,
+      name: r.name,
+      units: r.units,
+      basePrice: r.base_price,
+      currentPrice: Math.round(r.base_price * multiplier),
+    };
+  });
+
+  return NextResponse.json({
+    property: activeProperty,
+    rooms: roomsWithPrices,
+    seasons: activeSeasons,
+    mealPlans: activeMeals,
+    blockedDates: blocked,
+    _fallback: useFallback,
+  });
 }
 
 /**
