@@ -53,7 +53,7 @@ export function BookingPanel() {
   const roomPrice = selectedRoom?.currentPrice ?? 0;
   const mealPrice = selectedMeal?.price ?? 0;
   const roomTotal = roomPrice * units * nights;
-  const mealTotal = (mealPrice * adults + Math.round(mealPrice * 0.5) * children) * nights;
+  const mealTotal = (mealPrice * adults + Math.round(mealPrice * 0.5) * children) * units * nights;
   const subtotal = roomTotal + mealTotal;
   const taxes = Math.round(subtotal * GST_RATE);
   const total = subtotal + taxes;
@@ -238,10 +238,10 @@ export function BookingPanel() {
                       </Field>
                       <Field label="Units">
                         <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3">
-                          <span className="text-sm" style={{ fontFamily: "var(--font-body)" }}>{units}</span>
+                          <span className="text-sm" style={{ fontFamily: "var(--font-body)" }}>{units} / {maxUnits}</span>
                           <div className="flex items-center gap-1">
-                            <button type="button" onClick={() => setUnits(Math.max(1, units - 1))} className="h-6 w-6 rounded-full border border-white/15 text-white/80 transition hover:bg-white/10 text-xs">−</button>
-                            <button type="button" onClick={() => setUnits(Math.min(maxUnits, units + 1))} className="h-6 w-6 rounded-full border border-white/15 text-white/80 transition hover:bg-white/10 text-xs">+</button>
+                            <button type="button" onClick={() => { const u = Math.max(1, units - 1); setUnits(u); setAdults(Math.min(selectedRoom?.maxAdults ?? 2, Math.round(adults / units * u || 1))); setChildren(Math.min(selectedRoom?.maxChildren ?? 2, Math.round(children / units * u || 0))); }} className="h-6 w-6 rounded-full border border-white/15 text-white/80 transition hover:bg-white/10 text-xs">−</button>
+                            <button type="button" onClick={() => { const u = Math.min(maxUnits, units + 1); setUnits(u); setAdults(Math.min(selectedRoom?.maxAdults ?? 2, Math.round(adults / units * u || 1))); setChildren(Math.min(selectedRoom?.maxChildren ?? 2, Math.round(children / units * u || 0))); }} className="h-6 w-6 rounded-full border border-white/15 text-white/80 transition hover:bg-white/10 text-xs">+</button>
                           </div>
                         </div>
                       </Field>
