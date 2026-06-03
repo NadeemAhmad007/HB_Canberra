@@ -8,6 +8,9 @@ export interface PmsRoom {
   units: number;
   basePrice: number;
   currentPrice: number;
+  maxAdults: number;
+  maxChildren: number;
+  childPolicy: string;
 }
 
 export interface PmsSeason {

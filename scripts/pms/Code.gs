@@ -1,26 +1,104 @@
 /**
  * Houseboat Canberra — PMS Google Apps Script
  *
- * Deploy as Web App → Executes as "Me", Access "Anyone"
- * Provides JSON API for the Next.js front-end.
+ * Steps:
+ *   1. Open your sheet → Extensions → Apps Script
+ *   2. Paste this code → Save
+ *   3. Run install() once to create all missing tabs
+ *   4. Fill in your data in each tab
+ *   5. Deploy → New deployment → Web app (Execute as: Me, Access: Anyone)
+ *   6. Copy the URL → set as APPS_SCRIPT_URL in .env
  */
 
-// ── Sheet GIDs ──────────────────────────────────────────────────────────────
-// Match the tabs in the PMS spreadsheet.
-// Update these if tabs are reordered.
-var GIDS = {
-  PROPERTY_CONFIG: 0,
-  ROOM_INVENTORY: 1347479558,
-  BASE_RATES: 107645891,
-  SEASON_MULTIPLIER: 470367777,
-  MEAL_PLANS: 1896615790,
-  CALENDAR_BLOCK_MAP: 1878263457,
-  BOOKINGS: 1980912302,
+// ── Auth ─────────────────────────────────────────────────────────────────
+var AUTH_TOKEN = "Ghulam_Nabi_Kolu";
+
+// ── Tab names used in this sheet ─────────────────────────────────────────
+var TAB_NAMES = {
+  PROPERTY_CONFIG:  "Property_Config",
+  ROOM_INVENTORY:   "Room_Inventory",
+  BASE_RATES:       "Base_Rates",
+  SEASONS:          "Seasons",
+  MEAL_PLANS:       "Meal_Plans",
+  CALENDARS:        "Calendar_Block_Map",
+  BOOKINGS:         "Bookings",
 };
 
-// Auth token — passed as ?token= in every request.
-// Change this to a random string and keep secret.
-var AUTH_TOKEN = "Ghulam_Nabi_Kolu";
+// ── install(): run once to create any missing tabs with headers ──────────
+function install() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var tabs = [
+    {
+      name: TAB_NAMES.PROPERTY_CONFIG,
+      headers: [["Key", "Value"]],
+      data: [["NAME", "Houseboat Canberra"], ["GST", "18"], ["ADDRESS", "Dal Lake, Srinagar"], ["CURRENCY", "INR"]],
+    },
+    {
+      name: TAB_NAMES.ROOM_INVENTORY,
+      headers: [["Room_ID", "Room_Type", "Total_Units", "Price", "Max_Adults", "Max_Children", "Child_Policy"]],
+      data: [
+        ["R1", "Deluxe Room 1", 2, 11500, 2, 2, "1 child above 10, 2 children below 10"],
+        ["R2", "Deluxe Room 2", 2, 11500, 2, 2, "1 child above 10, 2 children below 10"],
+        ["R3", "Family Suite", 1, 24500, 4, 2, "2 children below 12"],
+      ],
+    },
+    {
+      name: TAB_NAMES.BASE_RATES,
+      headers: [["Room_ID", "Base_Price"]],
+      data: [["R1", 11500], ["R2", 11500], ["R3", 24500]],
+    },
+    {
+      name: TAB_NAMES.SEASONS,
+      headers: [["Start_Date", "End_Date", "Multiplier"]],
+      data: [["2026-04-01", "2026-09-30", 1.0], ["2026-10-01", "2027-03-31", 1.4]],
+    },
+    {
+      name: TAB_NAMES.MEAL_PLANS,
+      headers: [["Code", "Name", "Price"]],
+      data: [
+        ["EP", "European Plan (Room only)", 0],
+        ["CP", "Continental Plan (Breakfast only)", 650],
+        ["MAP", "Modified American Plan (Breakfast + Dinner)", 1800],
+        ["AP", "American Plan (All meals)", 3200],
+      ],
+    },
+    {
+      name: TAB_NAMES.CALENDARS,
+      headers: [["Room_ID", "Calendar_ID"]],
+      data: [["R1", ""], ["R2", ""], ["R3", ""]],
+    },
+    {
+      name: TAB_NAMES.BOOKINGS,
+      headers: [["Booking_ID", "Guest_Name", "Phone", "Email", "Room_ID", "Meal_Code", "Adults", "Children", "Units", "Check_In", "Check_Out", "Nights", "Amount", "Status", "Invoice_URL", "Created_At"]],
+      data: [],
+    },
+  ];
+
+  for (var i = 0; i < tabs.length; i++) {
+    var t = tabs[i];
+    var sheet = ss.getSheetByName(t.name);
+    if (!sheet) {
+      sheet = ss.insertSheet(t.name);
+      sheet.getRange(1, 1, 1, t.headers[0].length).setValues(t.headers);
+      if (t.data.length > 0) {
+        sheet.getRange(2, 1, t.data.length, t.headers[0].length).setValues(t.data);
+      }
+      sheet.setFrozenRows(1);
+      Logger.log("Created tab: " + t.name);
+    } else {
+      Logger.log("Tab already exists: " + t.name);
+    }
+  }
+
+  // Remove the default "Sheet1" if it exists and is empty
+  var defaultSheet = ss.getSheetByName("Sheet1");
+  if (defaultSheet && defaultSheet.getLastRow() <= 1) {
+    ss.deleteSheet(defaultSheet);
+  }
+
+  SpreadsheetApp.flush();
+  Logger.log("Install complete — fill in your data and deploy.");
+}
 
 // ── doGet: Read all PMS data ──────────────────────────────────────────────
 function doGet(e) {
@@ -31,12 +109,12 @@ function doGet(e) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var data = {
       ok: true,
-      property:    sheetToKeyValue(ss, GIDS.PROPERTY_CONFIG),
-      rooms:       sheetToObjects(ss, GIDS.ROOM_INVENTORY),
-      rates:       sheetToObjects(ss, GIDS.BASE_RATES),
-      seasons:     sheetToObjects(ss, GIDS.SEASON_MULTIPLIER),
-      mealPlans:   sheetToObjects(ss, GIDS.MEAL_PLANS),
-      calendars:   sheetToObjects(ss, GIDS.CALENDAR_BLOCK_MAP),
+      property:    sheetToKeyValue(ss, TAB_NAMES.PROPERTY_CONFIG),
+      rooms:       sheetToObjects(ss, TAB_NAMES.ROOM_INVENTORY),
+      rates:       sheetToObjects(ss, TAB_NAMES.BASE_RATES),
+      seasons:     sheetToObjects(ss, TAB_NAMES.SEASONS),
+      mealPlans:   sheetToObjects(ss, TAB_NAMES.MEAL_PLANS),
+      calendars:   sheetToObjects(ss, TAB_NAMES.CALENDARS),
     };
     // Enrich rooms with their computed current price
     data.rooms = data.rooms.map(function (r) {
@@ -61,7 +139,7 @@ function doPost(e) {
   try {
     var body = JSON.parse(e.postData.contents);
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = ss.getSheetById(GIDS.BOOKINGS);
+    var sheet = ss.getSheetByName(TAB_NAMES.BOOKINGS);
     var nextId = "HBC-" + Utilities.formatDate(new Date(), "IST", "yyyyMMdd") + "-" + String(sheet.getLastRow()).padStart(3, "0");
     var row = [
       nextId,
@@ -71,6 +149,8 @@ function doPost(e) {
       body.roomId || "",
       body.mealCode || "",
       body.adults || 1,
+      body.children || 0,
+      body.units || 1,
       body.checkIn || "",
       body.checkOut || "",
       body.nights || 1,
@@ -132,8 +212,13 @@ function fetchAllBlockedDates(calendars) {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
-function sheetToKeyValue(ss, gid) {
-  var sheet = ss.getSheetById(gid);
+function getSheet(ss, name) {
+  return ss.getSheetByName(name);
+}
+
+function sheetToKeyValue(ss, name) {
+  var sheet = getSheet(ss, name);
+  if (!sheet) return {};
   var rows = sheet.getDataRange().getValues();
   var obj = {};
   for (var i = 1; i < rows.length; i++) {
@@ -142,8 +227,9 @@ function sheetToKeyValue(ss, gid) {
   return obj;
 }
 
-function sheetToObjects(ss, gid) {
-  var sheet = ss.getSheetById(gid);
+function sheetToObjects(ss, name) {
+  var sheet = getSheet(ss, name);
+  if (!sheet) return [];
   var rows = sheet.getDataRange().getValues();
   if (rows.length < 2) return [];
   var headers = rows[0];
@@ -160,8 +246,6 @@ function sheetToObjects(ss, gid) {
 }
 
 function jsonResponse(code, data) {
-  // Always return with status info in the body — ContentService
-  // does not support custom HTTP status codes.
   return ContentService
     .createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);

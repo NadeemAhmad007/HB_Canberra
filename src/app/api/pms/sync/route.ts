@@ -16,6 +16,9 @@ interface AppsScriptRoom {
   Total_Units: string;
   basePrice: number;
   currentPrice: number;
+  Max_Adults?: string;
+  Max_Children?: string;
+  Child_Policy?: string;
 }
 
 interface AppsScriptSeason {
@@ -79,6 +82,9 @@ export async function POST(request: Request) {
           name: r.Room_Type,
           units: parseInt(r.Total_Units) || 1,
           base_price: r.basePrice,
+          max_adults: parseInt(r.Max_Adults) || 2,
+          max_children: parseInt(r.Max_Children) || 2,
+          child_policy: r.Child_Policy || "",
         }))
       ),
       replaceSeasons(

@@ -11,6 +11,9 @@ export interface Room {
   name: string;
   units: number;
   base_price: number;
+  max_adults: number;
+  max_children: number;
+  child_policy: string;
 }
 
 export interface Season {
@@ -34,6 +37,8 @@ export interface Booking {
   room_id: number;
   meal_code: string;
   adults: number;
+  children: number;
+  units: number;
   check_in: string;
   check_out: string;
   nights: number;
@@ -60,12 +65,15 @@ export async function upsertRooms(rooms: Room[]) {
   const sql = getSql();
   for (const r of rooms) {
     await sql`
-      INSERT INTO rooms (id, name, units, base_price, updated_at)
-      VALUES (${r.id}, ${r.name}, ${r.units}, ${r.base_price}, now())
+      INSERT INTO rooms (id, name, units, base_price, max_adults, max_children, child_policy, updated_at)
+      VALUES (${r.id}, ${r.name}, ${r.units}, ${r.base_price}, ${r.max_adults}, ${r.max_children}, ${r.child_policy}, now())
       ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
         units = EXCLUDED.units,
         base_price = EXCLUDED.base_price,
+        max_adults = EXCLUDED.max_adults,
+        max_children = EXCLUDED.max_children,
+        child_policy = EXCLUDED.child_policy,
         updated_at = now()
     `;
   }
@@ -153,8 +161,8 @@ export async function replaceBlockedDates(
 export async function createBooking(b: Omit<Booking, "id" | "created_at">) {
   const sql = getSql();
   const [row] = await (sql`
-    INSERT INTO bookings (booking_ref, guest_name, phone, email, room_id, meal_code, adults, check_in, check_out, nights, amount, currency, stripe_payment_intent, status, invoice_url)
-    VALUES (${b.booking_ref}, ${b.guest_name}, ${b.phone}, ${b.email}, ${b.room_id}, ${b.meal_code}, ${b.adults}, ${b.check_in}, ${b.check_out}, ${b.nights}, ${b.amount}, ${b.currency}, ${b.stripe_payment_intent}, ${b.status}, ${b.invoice_url})
+    INSERT INTO bookings (booking_ref, guest_name, phone, email, room_id, meal_code, adults, children, units, check_in, check_out, nights, amount, currency, stripe_payment_intent, status, invoice_url)
+    VALUES (${b.booking_ref}, ${b.guest_name}, ${b.phone}, ${b.email}, ${b.room_id}, ${b.meal_code}, ${b.adults}, ${b.children}, ${b.units}, ${b.check_in}, ${b.check_out}, ${b.nights}, ${b.amount}, ${b.currency}, ${b.stripe_payment_intent}, ${b.status}, ${b.invoice_url})
     RETURNING id, created_at
   ` as unknown as Promise<Array<{ id: string; created_at: string }>>);
   return row;

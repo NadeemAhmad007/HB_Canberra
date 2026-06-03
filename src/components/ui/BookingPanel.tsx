@@ -23,7 +23,9 @@ export function BookingPanel() {
   const [email, setEmail] = useState("");
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
-  const [guests, setGuests] = useState(2);
+  const [adults, setAdults] = useState(2);
+  const [children, setChildren] = useState(0);
+  const [units, setUnits] = useState(1);
   const [roomId, setRoomId] = useState(pmsRooms[0]?.id ? String(pmsRooms[0].id) : "");
   const [mealCode, setMealCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -50,9 +52,12 @@ export function BookingPanel() {
   const selectedMeal = pmsMeals.find((m) => m.code === mealCode);
   const roomPrice = selectedRoom?.currentPrice ?? 0;
   const mealPrice = selectedMeal?.price ?? 0;
-  const subtotal = (roomPrice + mealPrice) * nights;
+  const roomTotal = roomPrice * units * nights;
+  const mealTotal = (mealPrice * adults + Math.round(mealPrice * 0.5) * children) * nights;
+  const subtotal = roomTotal + mealTotal;
   const taxes = Math.round(subtotal * GST_RATE);
   const total = subtotal + taxes;
+  const maxUnits = selectedRoom?.units ?? 1;
 
   const minDate = new Date().toISOString().slice(0, 10);
 
@@ -68,7 +73,9 @@ export function BookingPanel() {
         email,
         roomId: roomId,
         mealCode: mealCode,
-        adults: guests,
+        adults,
+        children,
+        units,
         checkIn,
         checkOut,
         nights,
@@ -210,44 +217,48 @@ export function BookingPanel() {
                       </Field>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <Field label="Guests">
-                        <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                          <span className="text-sm" style={{ fontFamily: "var(--font-body)" }}>
-                            {guests} {guests === 1 ? "guest" : "guests"}
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setGuests(Math.max(1, guests - 1))}
-                              className="h-7 w-7 rounded-full border border-white/15 text-white/80 transition hover:bg-white/10"
-                            >
-                              −
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setGuests(Math.min(8, guests + 1))}
-                              className="h-7 w-7 rounded-full border border-white/15 text-white/80 transition hover:bg-white/10"
-                            >
-                              +
-                            </button>
+                    <div className="grid grid-cols-3 gap-4">
+                      <Field label="Adults">
+                        <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3">
+                          <span className="text-sm" style={{ fontFamily: "var(--font-body)" }}>{adults}</span>
+                          <div className="flex items-center gap-1">
+                            <button type="button" onClick={() => setAdults(Math.max(1, adults - 1))} className="h-6 w-6 rounded-full border border-white/15 text-white/80 transition hover:bg-white/10 text-xs">−</button>
+                            <button type="button" onClick={() => setAdults(Math.min(selectedRoom?.maxAdults ?? 2, adults + 1))} className="h-6 w-6 rounded-full border border-white/15 text-white/80 transition hover:bg-white/10 text-xs">+</button>
                           </div>
                         </div>
                       </Field>
-                      <Field label="Suite">
-                        <select
-                          value={roomId}
-                          onChange={(e) => setRoomId(e.target.value)}
-                          className="booking-input"
-                        >
-                          {pmsRooms.map((r) => (
-                            <option key={r.id} value={r.id} className="bg-black">
-                              {r.name} — {formatPrice(r.currentPrice, "INR")}
-                            </option>
-                          ))}
-                        </select>
+                      <Field label="Children">
+                        <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3">
+                          <span className="text-sm" style={{ fontFamily: "var(--font-body)" }}>{children}</span>
+                          <div className="flex items-center gap-1">
+                            <button type="button" onClick={() => setChildren(Math.max(0, children - 1))} className="h-6 w-6 rounded-full border border-white/15 text-white/80 transition hover:bg-white/10 text-xs">−</button>
+                            <button type="button" onClick={() => setChildren(Math.min(selectedRoom?.maxChildren ?? 2, children + 1))} className="h-6 w-6 rounded-full border border-white/15 text-white/80 transition hover:bg-white/10 text-xs">+</button>
+                          </div>
+                        </div>
+                      </Field>
+                      <Field label="Units">
+                        <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3">
+                          <span className="text-sm" style={{ fontFamily: "var(--font-body)" }}>{units}</span>
+                          <div className="flex items-center gap-1">
+                            <button type="button" onClick={() => setUnits(Math.max(1, units - 1))} className="h-6 w-6 rounded-full border border-white/15 text-white/80 transition hover:bg-white/10 text-xs">−</button>
+                            <button type="button" onClick={() => setUnits(Math.min(maxUnits, units + 1))} className="h-6 w-6 rounded-full border border-white/15 text-white/80 transition hover:bg-white/10 text-xs">+</button>
+                          </div>
+                        </div>
                       </Field>
                     </div>
+                    <Field label="Suite">
+                      <select
+                        value={roomId}
+                        onChange={(e) => { setRoomId(e.target.value); setUnits(1); }}
+                        className="booking-input"
+                      >
+                        {pmsRooms.map((r) => (
+                          <option key={r.id} value={r.id} className="bg-black">
+                            {r.name} — {formatPrice(r.currentPrice, "INR")}/night ({r.units} available)
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
 
                     <Field label="Meal plan">
                       <select
@@ -329,15 +340,17 @@ export function BookingPanel() {
                       {selectedRoom.name}
                     </h3>
                     <div className="mt-4 space-y-1 text-sm text-white/70" style={{ fontFamily: "var(--font-body)" }}>
-                      <div>{formatPrice(roomPrice, "INR")} / night</div>
-                      {selectedMeal && <div>+ {selectedMeal.name} ({formatPrice(mealPrice, "INR")})</div>}
+                      <div>{formatPrice(roomPrice, "INR")} / unit / night</div>
+                      <div className="text-[11px] text-white/50">Up to {selectedRoom.maxAdults} adults + {selectedRoom.maxChildren} children per unit</div>
+                      {selectedRoom.childPolicy && <div className="text-[10px] text-white/40 italic">{selectedRoom.childPolicy}</div>}
+                      {selectedMeal && <div>+ {selectedMeal.name} ({formatPrice(mealPrice, "INR")}/adult, half for children)</div>}
                     </div>
                   </div>
                 )}
 
                 <div className="mt-8 space-y-3 border-t border-white/10 pt-6 text-sm" style={{ fontFamily: "var(--font-body)" }}>
-                  <Line label={`Room × ${nights} ${nights === 1 ? "night" : "nights"}`} value={formatPrice(roomPrice * nights, "INR")} />
-                  {mealPrice > 0 && <Line label="Meal plan" value={formatPrice(mealPrice * nights, "INR")} />}
+                  <Line label={`${units} × ${selectedRoom?.name ?? "Suite"} × ${nights} ${nights === 1 ? "night" : "nights"}`} value={formatPrice(roomTotal, "INR")} />
+                  {mealPrice > 0 && <Line label={`Meal plan (${adults} adults + ${children} children)`} value={formatPrice(mealTotal, "INR")} />}
                   <Line label="Taxes & service" value={formatPrice(taxes, "INR")} muted />
                   <div className="mt-4 border-t border-white/10 pt-4">
                     <Line label="Total" value={formatPrice(total, "INR")} large />

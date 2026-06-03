@@ -12,8 +12,8 @@ const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
 const APPS_SCRIPT_TOKEN = process.env.APPS_SCRIPT_TOKEN;
 
 const FALLBACK_ROOMS = [
-  { id: 1, name: "Deluxe Suite", units: 2, base_price: 8500 },
-  { id: 2, name: "Premium Houseboat", units: 1, base_price: 12500 },
+  { id: 1, name: "Deluxe Room", units: 2, base_price: 11500, max_adults: 2, max_children: 2, child_policy: "1 child above 10, 2 children below 10" },
+  { id: 3, name: "Family Suite", units: 1, base_price: 24500, max_adults: 4, max_children: 2, child_policy: "2 children below 12" },
 ];
 const FALLBACK_SEASONS = [
   { start_date: "2026-04-01", end_date: "2026-09-30", multiplier: 1.0 },
@@ -21,7 +21,7 @@ const FALLBACK_SEASONS = [
 ];
 const FALLBACK_MEALS = [
   { code: "EP", name: "European Plan (Room only)", price: 0 },
-  { code: "CP", name: "Continental Plan (Breakfast)", price: 650 },
+  { code: "CP", name: "Continental Plan (Breakfast only)", price: 650 },
   { code: "MAP", name: "Modified American Plan (Breakfast + Dinner)", price: 1800 },
   { code: "AP", name: "American Plan (All meals)", price: 3200 },
 ];
@@ -31,9 +31,9 @@ const FALLBACK_MEALS = [
  * Always returns data — falls back to hardcoded defaults when DB is unavailable.
  */
 export async function GET() {
-  let dbRooms: { id: number; name: string; units: number; base_price: number }[] = [];
-  let dbSeasons: { start_date: string; end_date: string; multiplier: number }[] = [];
-  let dbMeals: { code: string; name: string; price: number }[] = [];
+  let dbRooms: (typeof FALLBACK_ROOMS)[number][] = [];
+  let dbSeasons: (typeof FALLBACK_SEASONS)[number][] = [];
+  let dbMeals: (typeof FALLBACK_MEALS)[number][] = [];
   let dbProperty: Record<string, string> = {};
   let dbBlocked: { room_id: number; date: string }[] = [];
 
@@ -78,6 +78,9 @@ export async function GET() {
       units: r.units,
       basePrice: r.base_price,
       currentPrice: Math.round(r.base_price * multiplier),
+      maxAdults: r.max_adults,
+      maxChildren: r.max_children,
+      childPolicy: r.child_policy,
     };
   });
 
@@ -98,7 +101,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { guestName, phone, email, roomId, mealCode, adults, checkIn, checkOut, nights, amount } = body;
+    const { guestName, phone, email, roomId, mealCode, adults, children, units, checkIn, checkOut, nights, amount } = body;
 
     if (!checkIn || !checkOut || !roomId) {
       return NextResponse.json(
@@ -118,6 +121,8 @@ export async function POST(request: Request) {
       room_id: parseInt(String(roomId)),
       meal_code: mealCode || "",
       adults: adults || 1,
+      children: children || 0,
+      units: units || 1,
       check_in: checkIn,
       check_out: checkOut,
       nights: nights || 1,
@@ -141,6 +146,8 @@ export async function POST(request: Request) {
           roomId,
           mealCode,
           adults,
+          children,
+          units,
           checkIn,
           checkOut,
           nights,
