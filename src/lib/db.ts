@@ -202,6 +202,20 @@ export async function replaceBlockedDates(
   }
 }
 
+// ── Admin: get all bookings ──────────────────────────────────────────────
+export interface BookingWithRoom extends Booking {
+  room_name: string;
+}
+export async function getAllBookings(): Promise<BookingWithRoom[]> {
+  const sql = getSql();
+  return sql`
+    SELECT b.*, r.name as room_name
+    FROM bookings b
+    JOIN rooms r ON r.id = b.room_id
+    ORDER BY b.created_at DESC
+  ` as unknown as Promise<BookingWithRoom[]>;
+}
+
 // ── Bookings ─────────────────────────────────────────────────────────────
 export async function createBooking(b: Omit<Booking, "id" | "created_at">) {
   const sql = getSql();
@@ -236,7 +250,7 @@ export async function updateBookingStatus(
 export async function logSync(
   status: string,
   message: string,
-  source = "google-sheets"
+  source = "admin"
 ) {
   const sql = getSql();
   await sql`

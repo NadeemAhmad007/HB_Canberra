@@ -7,10 +7,11 @@ import {
   getBlockedDates,
   createBooking,
   getAvailableUnits,
+  upsertRooms,
+  replaceSeasons,
+  replaceMealPlans,
+  replacePropertyConfig,
 } from "@/lib/db";
-
-const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
-const APPS_SCRIPT_TOKEN = process.env.APPS_SCRIPT_TOKEN;
 
 const FALLBACK_ROOMS = [
   { id: 1, name: "Deluxe Room", units: 2, base_price: 11500, max_adults: 2, max_children: 2, child_policy: "1 child above 10, 2 children below 10" },
@@ -55,6 +56,21 @@ export async function GET(request: Request) {
   }
 
   const useFallback = dbRooms.length === 0;
+
+  // Auto-seed if DB is empty — first request populates data
+  if (useFallback) {
+    try {
+      await Promise.all([
+        upsertRooms(FALLBACK_ROOMS),
+        replaceSeasons(FALLBACK_SEASONS),
+        replaceMealPlans(FALLBACK_MEALS),
+        replacePropertyConfig({ GST: "18", NAME: "Houseboat Canberra", ADDRESS: "Dal Lake, Srinagar", CURRENCY: "INR" }),
+      ]);
+    } catch {
+      // seed failed, stay on fallback
+    }
+  }
+
   const activeRooms = useFallback ? FALLBACK_ROOMS : dbRooms;
   const activeSeasons = useFallback ? FALLBACK_SEASONS : dbSeasons;
   const activeMeals = useFallback ? FALLBACK_MEALS : dbMeals;
@@ -122,68 +138,26 @@ export async function POST(request: Request) {
 
     const ref = "HBC-" + new Date().toISOString().slice(0, 10).replace(/-/g, "") + "-" + String(Math.floor(Math.random() * 900) + 100);
 
-    // Try Neon first, fall back to Google Sheets
-    let savedTo = "nowhere";
-    try {
-      await createBooking({
-        booking_ref: ref,
-        guest_name: guestName || "Guest",
-        phone: phone || "",
-        email: email || "",
-        room_id: parseInt(String(roomId)),
-        meal_code: mealCode || "",
-        adults: adults || 1,
-        children: children || 0,
-        units: units || 1,
-        check_in: checkIn,
-        check_out: checkOut,
-        nights: nights || 1,
-        amount: amount || 0,
-        currency: "INR",
-        stripe_payment_intent: "",
-        status: "pending",
-        invoice_url: "",
-      });
-      savedTo = "neon";
-    } catch {
-      console.warn("[PMS] Neon write failed, trying Sheets...");
-    }
-
-    // If Neon failed, try Google Sheets
-    if (savedTo !== "neon" && APPS_SCRIPT_URL && APPS_SCRIPT_TOKEN) {
-      try {
-        const sheetRes = await fetch(APPS_SCRIPT_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            token: APPS_SCRIPT_TOKEN,
-            guestName,
-            phone,
-            email,
-            roomId,
-            mealCode,
-            adults,
-            children,
-            units,
-            checkIn,
-            checkOut,
-            nights,
-            amount,
-            status: "pending",
-          }),
-        });
-        if (sheetRes.ok) savedTo = "sheets";
-      } catch {
-        console.warn("[PMS] Sheets write also failed");
-      }
-    }
-
-    if (savedTo === "nowhere") {
-      return NextResponse.json(
-        { error: "Could not save booking — database and sheet both unreachable" },
-        { status: 500 }
-      );
-    }
+    // Save to Neon
+    await createBooking({
+      booking_ref: ref,
+      guest_name: guestName || "Guest",
+      phone: phone || "",
+      email: email || "",
+      room_id: parseInt(String(roomId)),
+      meal_code: mealCode || "",
+      adults: adults || 1,
+      children: children || 0,
+      units: units || 1,
+      check_in: checkIn,
+      check_out: checkOut,
+      nights: nights || 1,
+      amount: amount || 0,
+      currency: "INR",
+      stripe_payment_intent: "",
+      status: "pending",
+      invoice_url: "",
+    });
 
     return NextResponse.json({
       ok: true,

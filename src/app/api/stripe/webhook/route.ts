@@ -2,9 +2,6 @@ import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { createBooking } from "@/lib/db";
 
-const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
-const APPS_SCRIPT_TOKEN = process.env.APPS_SCRIPT_TOKEN;
-
 async function getStripe() {
   const { default: Stripe } = await import("stripe");
   return new Stripe(process.env.STRIPE_SECRET_KEY!);
@@ -14,7 +11,7 @@ async function getStripe() {
  * POST /api/stripe/webhook
  *
  * Receives Stripe webhook events. On checkout.session.completed,
- * writes the booking to Neon and pushes a row to Google Sheets.
+ * writes the booking to Neon and sends email confirmation (optional).
  */
 export async function POST(request: Request) {
   const sig = request.headers.get("stripe-signature")!;
@@ -29,10 +26,7 @@ export async function POST(request: Request) {
       process.env.STRIPE_WEBHOOK_SECRET!
     );
   } catch {
-    return NextResponse.json(
-      { error: "Invalid signature" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
   if (event.type === "checkout.session.completed") {
@@ -59,26 +53,8 @@ export async function POST(request: Request) {
       invoice_url: session.invoice?.toString() || "",
     };
 
-    // Write to Neon
     await createBooking(booking);
 
-    // Write to Google Sheets via Apps Script
-    if (APPS_SCRIPT_URL && APPS_SCRIPT_TOKEN) {
-      try {
-        await fetch(APPS_SCRIPT_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            token: APPS_SCRIPT_TOKEN,
-            ...booking,
-          }),
-        });
-      } catch {
-        // Non-blocking — Sheets write can fail without breaking the booking
-      }
-    }
-
-    // Send confirmation via Resend
     if (process.env.RESEND_API_KEY) {
       try {
         const { Resend } = await import("resend");
@@ -87,14 +63,7 @@ export async function POST(request: Request) {
           from: "Houseboat Canberra <bookings@houseboatcanberra.com>",
           to: booking.email,
           subject: `Booking Confirmed — ${booking.booking_ref}`,
-          html: `<p>Dear ${booking.guest_name},</p>
-<p>Your booking at Houseboat Canberra is confirmed.</p>
-<p><strong>Reference:</strong> ${booking.booking_ref}</p>
-<p><strong>Check-in:</strong> ${booking.check_in}</p>
-<p><strong>Check-out:</strong> ${booking.check_out}</p>
-<p><strong>Amount:</strong> ₹${booking.amount}</p>
-<p>We look forward to welcoming you.</p>
-<p>— Houseboat Canberra</p>`,
+          html: `<p>Dear ${booking.guest_name},</p><p>Your booking at Houseboat Canberra is confirmed.</p><p><strong>Reference:</strong> ${booking.booking_ref}</p><p><strong>Check-in:</strong> ${booking.check_in} <strong>Check-out:</strong> ${booking.check_out}</p><p><strong>Amount:</strong> ₹${booking.amount}</p><p>We look forward to welcoming you.</p><p>— Houseboat Canberra</p>`,
         });
       } catch {
         // Non-blocking
