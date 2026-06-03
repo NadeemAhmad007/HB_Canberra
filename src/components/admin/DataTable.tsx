@@ -44,8 +44,10 @@ export function DataTable({
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(0);
 
+  const safeData = Array.isArray(data) ? data : [];
+
   const filtered = useMemo(() => {
-    let items = data;
+    let items = safeData;
     if (search) {
       const q = search.toLowerCase();
       items = items.filter((row) =>

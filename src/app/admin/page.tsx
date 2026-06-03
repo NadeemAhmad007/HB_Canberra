@@ -28,10 +28,10 @@ export default function DashboardPage() {
   }, []);
 
   if (loading) return <div className="space-y-8"><Skeleton className="h-32 w-full" /><Skeleton className="h-64 w-full" /></div>;
-  if (!data) return <EmptyState title="Could not load dashboard" />;
+  if (!data || !Array.isArray(data?.bookings)) return <EmptyState title="Could not load dashboard" />;
 
-  const bookings = data.bookings || [];
-  const rooms = data.rooms || [];
+  const bookings = data.bookings;
+  const rooms = Array.isArray(data.rooms) ? data.rooms : [];
   const totalRooms = rooms.reduce((s: number, r: any) => s + r.units, 0);
   const today = new Date().toISOString().slice(0, 10);
   const todayCheckins = bookings.filter((b: any) => b.check_in === today && b.status !== "cancelled").length;

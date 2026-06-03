@@ -29,9 +29,10 @@ export default function CalendarPage() {
   }, []);
 
   if (loading) return <Skeleton className="h-96 w-full" />;
-  if (!rooms.length) return <EmptyState title="No rooms" />;
+  if (!Array.isArray(rooms) || !rooms.length) return <EmptyState title="No rooms" />;
 
-  const visible = bookings.filter((b: any) =>
+  const safeBookings = Array.isArray(bookings) ? bookings : [];
+  const visible = safeBookings.filter((b: any) =>
     b.status !== "cancelled" &&
     b.check_in?.slice(0, 7) <= monthStr &&
     b.check_out?.slice(0, 7) >= monthStr

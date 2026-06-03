@@ -29,8 +29,9 @@ export default function NotificationsPage() {
     fetchData();
   };
 
-  const filtered = filter === "all" ? data : data.filter((n) => n.type === filter);
-  const unread = data.filter((n) => !n.read).length;
+  const safeData = Array.isArray(data) ? data : [];
+  const filtered = filter === "all" ? safeData : safeData.filter((n) => n.type === filter);
+  const unread = safeData.filter((n) => !n.read).length;
 
   if (loading) return <Skeleton className="h-64 w-full" />;
 

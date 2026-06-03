@@ -25,18 +25,20 @@ export default function ReportsPage() {
 
   if (loading) return <div className="space-y-6"><Skeleton className="h-48 w-full" /><Skeleton className="h-64 w-full" /></div>;
 
+  const safeBookings = Array.isArray(bookings) ? bookings : [];
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const revenueByMonth = months.map((m, i) => {
     const mStr = String(i + 1).padStart(2, "0");
-    const rev = bookings.filter((b: any) => b.status !== "cancelled" && b.created_at?.slice(5,7) === mStr)
+    const rev = safeBookings.filter((b: any) => b.status !== "cancelled" && b.created_at?.slice(5,7) === mStr)
       .reduce((s: number, b: any) => s + (b.amount || 0), 0);
-    const cnt = bookings.filter((b: any) => b.status !== "cancelled" && b.created_at?.slice(5,7) === mStr).length;
+    const cnt = safeBookings.filter((b: any) => b.status !== "cancelled" && b.created_at?.slice(5,7) === mStr).length;
     return { month: m, revenue: rev, bookings: cnt };
   });
 
   const totalRevenue = revenueByMonth.reduce((s, r) => s + r.revenue, 0);
   const totalBookings = revenueByMonth.reduce((s, r) => s + r.bookings, 0);
-  const totalRooms = rooms.reduce((s: number, r: any) => s + r.units, 0);
+  const safeRooms = Array.isArray(rooms) ? rooms : [];
+  const totalRooms = safeRooms.reduce((s: number, r: any) => s + r.units, 0);
   const adr = totalBookings > 0 ? Math.round(totalRevenue / totalBookings) : 0;
   const revpar = totalRooms > 0 ? Math.round(totalRevenue / (totalRooms * 12)) : 0;
 

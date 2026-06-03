@@ -38,7 +38,7 @@ export default function InventoryPage() {
   }, []);
 
   const statusFor = (roomId: number, roomName: string, date: string): string => {
-    const b = bookings.find((x: any) =>
+    const b = safeBookings.find((x: any) =>
       x.room_name === roomName &&
       x.status !== "cancelled" &&
       x.status !== "checked-out" &&
@@ -49,7 +49,8 @@ export default function InventoryPage() {
   };
 
   if (loading) return <Skeleton className="h-96 w-full" />;
-  if (!rooms.length) return <EmptyState title="No rooms" />;
+  if (!Array.isArray(rooms) || !rooms.length) return <EmptyState title="No rooms" />;
+  const safeBookings = Array.isArray(bookings) ? bookings : [];
 
   return (
     <div className="space-y-6">
