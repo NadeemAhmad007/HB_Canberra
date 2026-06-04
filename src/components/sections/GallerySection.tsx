@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useStore } from "@/store/useStore";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -10,7 +10,30 @@ export function GallerySection() {
   const fetchPms = useStore((s) => s.fetchPms);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showTour, setShowTour] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const sectionRef = useRef<HTMLElement>(null);
+  const tourContainerRef = useRef<HTMLDivElement>(null);
+
+  const toggleFullscreen = useCallback(async () => {
+    if (!tourContainerRef.current) return;
+    if (!document.fullscreenElement) {
+      try {
+        await tourContainerRef.current.requestFullscreen();
+        setIsFullscreen(true);
+      } catch { }
+    } else {
+      try {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      } catch { }
+    }
+  }, []);
+
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, []);
 
   useEffect(() => { if (!pms) fetchPms(); }, [pms, fetchPms]);
 
@@ -155,7 +178,7 @@ export function GallerySection() {
                     </button>
                   )}
                   {activeRoom.tourUrl && showTour && (
-                    <div className="absolute inset-0">
+                    <div ref={tourContainerRef} className="absolute inset-0">
                       <iframe
                         title="360 Tour"
                         src={activeRoom.tourUrl}
@@ -163,15 +186,24 @@ export function GallerySection() {
                         width="100%"
                         height="100%"
                         scrolling="no"
-                        allow="vr; xr; accelerometer; gyroscope; autoplay;"
+                        allow="vr; xr; accelerometer; gyroscope; autoplay; fullscreen;"
                       />
-                      <button
-                        type="button"
-                        onClick={() => setShowTour(false)}
-                        className="absolute top-3 right-3 rounded-full bg-black/60 px-3 py-1 text-[10px] uppercase tracking-wider text-white/80 z-20"
-                      >
-                        Close Tour
-                      </button>
+                      <div className="absolute top-3 right-3 z-20 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={toggleFullscreen}
+                          className="rounded-full bg-black/60 px-3 py-1 text-[10px] uppercase tracking-wider text-white/80 hover:bg-black/80 transition"
+                        >
+                          {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowTour(false)}
+                          className="rounded-full bg-black/60 px-3 py-1 text-[10px] uppercase tracking-wider text-white/80 hover:bg-black/80 transition"
+                        >
+                          Close Tour
+                        </button>
+                      </div>
                     </div>
                   )}
                   {!activeRoom.tourUrl && (
