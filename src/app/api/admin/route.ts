@@ -290,19 +290,25 @@ export async function PUT(request: Request) {
         if (booking.status === "cancelled") {
           return NextResponse.json({ error: "Cannot mark paid: booking is cancelled" }, { status: 409 });
         }
+        console.log("[admin] mark-paid start", { bookingRef, currentStatus: booking.status });
 
-        const trans = await transitionBookingStatus(bookingRef, "confirmed");
-        if (!trans.ok && trans.from !== "confirmed") {
-          return NextResponse.json({ error: trans.reason || "Invalid transition" }, { status: 409 });
-        }
+        let trans: { ok: boolean; reason?: string; from?: string } = { ok: true, from: booking.status };
+        try {
+          trans = await transitionBookingStatus(bookingRef, "confirmed");
+          if (!trans.ok && trans.from !== "confirmed") {
+            return NextResponse.json({ error: trans.reason || "Invalid transition" }, { status: 409 });
+          }
+        } catch (e) { console.error("[admin] mark-paid transition check failed:", (e as Error).message); }
 
         if (trans.ok) {
-          const available = await getAvailableUnits(booking.room_id, booking.check_in, booking.check_out).catch(() => 1);
-          const currentBooked = await sql`SELECT COALESCE(SUM(units), 0) AS u FROM bookings WHERE room_id = ${booking.room_id} AND booking_ref != ${bookingRef} AND check_in < ${booking.check_out} AND check_out > ${booking.check_in} AND status != 'cancelled'` as unknown as Array<{ u: string }>;
-          const otherBooked = parseInt(currentBooked[0]?.u) || 0;
-          if (otherBooked + booking.units > available + booking.units) {
-            return NextResponse.json({ error: "Overbooking prevented: no units available for these dates" }, { status: 409 });
-          }
+          try {
+            const available = await getAvailableUnits(booking.room_id, booking.check_in, booking.check_out);
+            const currentBooked = await sql`SELECT COALESCE(SUM(units), 0) AS u FROM bookings WHERE room_id = ${booking.room_id} AND booking_ref != ${bookingRef} AND check_in < ${booking.check_out} AND check_out > ${booking.check_in} AND status != 'cancelled'` as unknown as Array<{ u: string }>;
+            const otherBooked = parseInt(currentBooked[0]?.u) || 0;
+            if (otherBooked + booking.units > available + booking.units) {
+              return NextResponse.json({ error: "Overbooking prevented: no units available for these dates" }, { status: 409 });
+            }
+          } catch (e) { console.error("[admin] mark-paid availability check failed:", (e as Error).message); }
         }
 
         const payAmount = amount || booking.amount - (booking.amount_paid || 0);
@@ -393,8 +399,9 @@ export async function PUT(request: Request) {
     }
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unknown error";
-    console.error("[admin PUT] error:", msg);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    const stack = error instanceof Error ? error.stack : "";
+    console.error("[admin PUT] error:", msg, "\nStack:", stack);
+    return NextResponse.json({ error: msg, stack }, { status: 500 });
   }
 }
 
