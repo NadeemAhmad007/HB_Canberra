@@ -64,10 +64,10 @@ export async function POST(request: Request) {
     } catch {}
 
     // Send confirmation email with bank details (non-blocking)
-    if (email) {
+    if (email && process.env.RESEND_API_KEY) {
       try {
         const { Resend } = await import("resend");
-        const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
+        const resend = new Resend(process.env.RESEND_API_KEY);
         const rooms = await (await import("@/lib/db")).getRooms().catch(() => []);
         const roomName = (rooms as any[]).find((r: any) => r.id === roomIdNum)?.name || "Selected Room";
         await resend.emails.send({

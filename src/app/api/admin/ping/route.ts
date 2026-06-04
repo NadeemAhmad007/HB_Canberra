@@ -3,11 +3,14 @@ import { query } from "@/lib/db";
 
 const SOURCES: { table: string; column: string }[] = [
   { table: "bookings", column: "updated_at" },
-  { table: "invoices", column: "updated_at" },
+  { table: "invoices", column: "created_at" },
   { table: "payments", column: "recorded_at" },
   { table: "guests", column: "updated_at" },
   { table: "housekeeping_tasks", column: "updated_at" },
-  { table: "blocked_dates", column: "updated_at" },
+  { table: "blocked_dates", column: "date" },
+  { table: "activity_log", column: "created_at" },
+  { table: "email_templates", column: "updated_at" },
+  { table: "users", column: "updated_at" },
 ];
 
 export const dynamic = "force-dynamic";
@@ -34,7 +37,7 @@ export async function GET(request: Request) {
           if (!isNaN(t) && t > maxTs) maxTs = t;
         }
       } catch {
-        // Table missing or query errored — skip this source.
+        // Table missing or column missing — skip this source.
       }
     }
     return NextResponse.json(

@@ -70,13 +70,24 @@ export default function InventoryPage() {
       parseInt(bd.room_id) === roomId && bd.date === date && (parseInt(bd.unit_index) || 1) === unitIndex
     );
     if (isBlocked) return "blocked";
-    const b = safeBookings.find((x: any) =>
+
+    // Find bookings for this room on this date, assign each unit to a booking in arrival order
+    const overlapping = safeBookings.filter((x: any) =>
       x.room_name === roomName &&
       x.status !== "cancelled" &&
       x.status !== "checked-out" &&
       date >= x.check_in && date < x.check_out
-    );
-    if (b) return b.status === "checked-in" ? "occupied" : "reserved";
+    ).sort((a: any, b: any) => (a.check_in + a.booking_ref).localeCompare(b.check_in + b.booking_ref));
+
+    // Each booking claims (units) sequential unit indices starting from 1
+    let unitCursor = 1;
+    for (const b of overlapping) {
+      const claim = b.units || 1;
+      if (unitIndex >= unitCursor && unitIndex < unitCursor + claim) {
+        return b.status === "checked-in" ? "occupied" : "reserved";
+      }
+      unitCursor += claim;
+    }
     return "available";
   };
 

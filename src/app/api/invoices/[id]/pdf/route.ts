@@ -10,9 +10,9 @@ function fmt(n: number) {
   return "₹" + (n || 0).toLocaleString("en-IN");
 }
 
-export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const id = parseInt(url.searchParams.get("id") || "");
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id: idParam } = await params;
+  const id = parseInt(idParam);
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const invoice = await getInvoiceById(id).catch(() => null);

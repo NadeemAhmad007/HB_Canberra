@@ -89,7 +89,17 @@ export default function CalendarPage() {
           </div>
 
           {unitRows.map((unit) => {
-            const unitBookings = visible.filter((b: any) => b.room_name === unit.roomName);
+            const unitBookings = visible
+              .filter((b: any) => b.room_name === unit.roomName)
+              .sort((a: any, b: any) => (a.check_in + a.booking_ref).localeCompare(b.check_in + b.booking_ref));
+            // Assign each booking to a sequential block of unit indices
+            const unitsByBooking: { booking: any; unitStart: number }[] = [];
+            let cursor = 1;
+            for (const b of unitBookings) {
+              unitsByBooking.push({ booking: b, unitStart: cursor });
+              cursor += (b.units || 1);
+            }
+            const myBookingEntry = unitsByBooking.find((e) => unit.unitIndex >= e.unitStart && unit.unitIndex < e.unitStart + (e.booking.units || 1));
             return (
               <div key={unit.id} className="flex border-b border-white/5 last:border-0">
                 <div className="w-44 shrink-0 px-4 py-2.5 text-sm border-r border-white/5 flex items-center text-white/70">{unit.label}</div>
@@ -99,7 +109,9 @@ export default function CalendarPage() {
                     const isBlocked = safeBlocked.some((bd: any) =>
                       parseInt(bd.room_id) === unit.roomId && bd.date === dateStr && (parseInt(bd.unit_index) || 1) === unit.unitIndex
                     );
-                    const bOnDay = !isBlocked && unitBookings.find((b: any) => dateStr >= b.check_in && dateStr < b.check_out);
+                    const bOnDay = !isBlocked && myBookingEntry && dateStr >= myBookingEntry.booking.check_in && dateStr < myBookingEntry.booking.check_out
+                      ? myBookingEntry.booking
+                      : null;
                     const isStart = bOnDay && dateStr === bOnDay.check_in;
                     return (
                       <div key={d} className="w-10 shrink-0 border-l border-white/[0.02] relative"

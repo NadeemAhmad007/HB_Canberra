@@ -195,7 +195,9 @@ export async function getBookingByRef(bookingRef: string) {
     return res.rows[0] as any || null;
   } catch (e: any) {
     const res = await query(
-      `SELECT *, NULL AS room_name, NULL AS base_price, NULL AS room_units FROM bookings WHERE booking_ref = $1`,
+      `SELECT b.*, r.name AS room_name, r.base_price, r.units AS room_units
+         FROM bookings b LEFT JOIN rooms r ON r.id = b.room_id
+        WHERE b.booking_ref = $1`,
       [bookingRef]
     );
     return res.rows[0] as any || null;
