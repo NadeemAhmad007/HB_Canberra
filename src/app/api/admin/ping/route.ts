@@ -21,32 +21,24 @@ export async function GET(request: Request) {
     }
   }
   try {
-    const existing = await query<{ table_name: string }>(
-      `SELECT table_name FROM information_schema.tables
-       WHERE table_schema = 'public' AND table_name = ANY($1::text[])`,
-      [SOURCES.map((s) => s.table)]
-    );
-    const present = new Set(existing.rows.map((r) => r.table_name));
-
-    const parts: string[] = [];
+    let maxTs: number = 0;
     for (const src of SOURCES) {
-      if (present.has(src.table)) {
-        parts.push(`(SELECT MAX(${src.column}) FROM ${src.table})`);
+      try {
+        const res = await query(
+          `SELECT to_char(MAX(${src.column}) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS ts
+           FROM ${src.table}`
+        );
+        const ts = res.rows[0]?.ts;
+        if (ts) {
+          const t = new Date(ts).getTime();
+          if (!isNaN(t) && t > maxTs) maxTs = t;
+        }
+      } catch {
+        // Table missing or query errored — skip this source.
       }
     }
-    if (parts.length === 0) {
-      return NextResponse.json(
-        { ts: new Date(0).toISOString() },
-        { headers: { "Cache-Control": "no-store, max-age=0" } }
-      );
-    }
-
-    const res = await query(
-      `SELECT GREATEST(${parts.map((p) => `COALESCE(${p}, '1970-01-01'::timestamptz)`).join(", ")}) AS ts`
-    );
-    const ts = res.rows[0]?.ts ? new Date(res.rows[0].ts).toISOString() : new Date(0).toISOString();
     return NextResponse.json(
-      { ts },
+      { ts: new Date(maxTs).toISOString() },
       { headers: { "Cache-Control": "no-store, max-age=0" } }
     );
   } catch (error) {
