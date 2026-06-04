@@ -108,7 +108,4 @@ canvas {
   outline: none;
 }
 
-:fullscreen,
-::backdrop {
-  background: #000;
-}
+
