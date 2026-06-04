@@ -13,9 +13,9 @@ import {
   replacePropertyConfig,
 } from "@/lib/db";
 
-const FALLBACK_ROOMS = [
-  { id: 1, name: "Deluxe Room", units: 2, base_price: 11500, max_adults: 2, max_children: 2, child_policy: "1 child above 10, 2 children below 10" },
-  { id: 3, name: "Family Suite", units: 1, base_price: 24500, max_adults: 4, max_children: 2, child_policy: "2 children below 12" },
+const FALLBACK_ROOMS: Array<{ id: number; name: string; units: number; base_price: number; max_adults: number; max_children: number; child_policy: string; active: boolean; status: string }> = [
+  { id: 1, name: "Deluxe Room", units: 2, base_price: 11500, max_adults: 2, max_children: 2, child_policy: "1 child above 10, 2 children below 10", active: true, status: "available" },
+  { id: 3, name: "Family Suite", units: 1, base_price: 24500, max_adults: 4, max_children: 2, child_policy: "2 children below 12", active: true, status: "available" },
 ];
 const FALLBACK_SEASONS = [
   { start_date: "2026-04-01", end_date: "2026-09-30", multiplier: 1.0 },

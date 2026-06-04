@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Skeleton } from "@/components/admin/Skeleton";
 import { EmptyState } from "@/components/admin/Skeleton";
 import { useToast } from "@/components/admin/Toast";
+import { ChevronLeft, ChevronRight, Lock, Unlock } from "lucide-react";
 
 const token = () => sessionStorage.getItem("admin_token") || "";
 const h = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token()}` });
@@ -20,24 +21,41 @@ const STATUS_COLORS: Record<string, string> = {
 export default function InventoryPage() {
   const [rooms, setRooms] = useState<any[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
+  const [blockedDates, setBlockedDates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [startIndex, setStartIndex] = useState(0);
+  const [viewDays, setViewDays] = useState(30);
   const { toast } = useToast();
 
-  const today = new Date().toISOString().slice(0, 10);
-  const nextDays = Array.from({ length: 14 }, (_, i) => {
+  const nextDays = Array.from({ length: viewDays }, (_, i) => {
     const d = new Date();
-    d.setDate(d.getDate() + i);
+    d.setDate(d.getDate() + startIndex + i);
     return d.toISOString().slice(0, 10);
   });
 
-  useEffect(() => {
+  const fetchData = () => {
+    setLoading(true);
     Promise.all([
       fetch("/api/admin?resource=rooms", { headers: h() }).then((r) => r.json()),
       fetch("/api/admin?resource=bookings", { headers: h() }).then((r) => r.json()),
-    ]).then(([r, b]) => { setRooms(r); setBookings(b); }).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+      fetch("/api/admin?resource=blocked-dates", { headers: h() }).then((r) => r.json()),
+    ]).then(([r, b, bl]) => {
+      setRooms(Array.isArray(r) ? r : []);
+      setBookings(Array.isArray(b) ? b : []);
+      setBlockedDates(Array.isArray(bl) ? bl : []);
+    }).catch(() => {}).finally(() => setLoading(false));
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  const safeBookings = Array.isArray(bookings) ? bookings : [];
+  const safeBlocked = Array.isArray(blockedDates) ? blockedDates : [];
 
   const statusFor = (roomId: number, roomName: string, date: string): string => {
+    const isBlocked = safeBlocked.some((bd: any) =>
+      (parseInt(bd.room_id) === roomId || bd.room_id === roomId) && bd.date === date
+    );
+    if (isBlocked) return "blocked";
     const b = safeBookings.find((x: any) =>
       x.room_name === roomName &&
       x.status !== "cancelled" &&
@@ -48,29 +66,65 @@ export default function InventoryPage() {
     return "available";
   };
 
+  const toggleBlock = async (roomId: number, date: string) => {
+    const isBlocked = safeBlocked.some((bd: any) =>
+      (parseInt(bd.room_id) === roomId || bd.room_id === roomId) && bd.date === date
+    );
+    const current: Record<string, string[]> = {};
+    rooms.forEach((r: any) => { current[r.id] = []; });
+    safeBlocked.forEach((bd: any) => {
+      const rid = parseInt(bd.room_id) || bd.room_id;
+      if (!current[rid]) current[rid] = [];
+      current[rid].push(bd.date);
+    });
+    if (isBlocked) {
+      current[roomId] = (current[roomId] || []).filter((d: string) => d !== date);
+    } else {
+      if (!current[roomId]) current[roomId] = [];
+      current[roomId].push(date);
+    }
+    await fetch("/api/admin", { method: "PUT", headers: h(), body: JSON.stringify({ resource: "blocked-dates", data: current }) });
+    toast({ title: isBlocked ? "Date unblocked" : "Date blocked", type: "success" });
+    fetchData();
+  };
+
   if (loading) return <Skeleton className="h-96 w-full" />;
   if (!Array.isArray(rooms) || !rooms.length) return <EmptyState title="No rooms" />;
-  const safeBookings = Array.isArray(bookings) ? bookings : [];
 
   return (
     <div className="space-y-6">
-      <div><h1 className="text-2xl font-light" style={{ fontFamily: "var(--font-display)" }}>Inventory</h1><p className="mt-1 text-sm text-white/50">14-day occupancy view</p></div>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div><h1 className="text-2xl font-light" style={{ fontFamily: "var(--font-display)" }}>Inventory</h1><p className="mt-1 text-sm text-white/50">Click a date to block/unblock a room</p></div>
+        <div className="flex items-center gap-3">
+          <div className="flex rounded-xl border border-white/10 overflow-hidden">
+            {[14, 30, 60].map((d) => (
+              <button key={d} onClick={() => { setViewDays(d); setStartIndex(0); }} className={`px-4 py-2 text-[11px] uppercase tracking-wider ${viewDays === d ? "bg-white/15 text-white" : "text-white/40 hover:text-white"}`}>{d}d</button>
+            ))}
+          </div>
+          <button onClick={() => setStartIndex(Math.max(0, startIndex - viewDays))} className="rounded-xl border border-white/10 px-3 py-2 text-sm hover:bg-white/5"><ChevronLeft className="h-4 w-4" /></button>
+          <span className="text-[11px] text-white/50 min-w-20 text-center">{nextDays[0]} — {nextDays[nextDays.length - 1]}</span>
+          <button onClick={() => setStartIndex(startIndex + viewDays)} className="rounded-xl border border-white/10 px-3 py-2 text-sm hover:bg-white/5"><ChevronRight className="h-4 w-4" /></button>
+        </div>
+      </div>
 
-      <div className="flex gap-3 text-[10px] uppercase tracking-wider">
+      <div className="flex gap-4 text-[10px] uppercase tracking-wider flex-wrap">
         {STATUSES.map((s) => (
           <span key={s} className="flex items-center gap-2"><span className={`inline-block h-3 w-3 rounded ${STATUS_COLORS[s]}`} />{s}</span>
         ))}
+        <span className="flex items-center gap-1 text-white/30 ml-auto">
+          <Lock className="h-3 w-3" /> Click to toggle block
+        </span>
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-white/10">
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-white/10 bg-white/[0.02]">
-              <th className="px-4 py-3 text-[10px] uppercase tracking-wider text-white/40 font-normal w-40">Room</th>
+              <th className="px-4 py-3 text-[10px] uppercase tracking-wider text-white/40 font-normal w-40 sticky left-0 bg-[#0A0D0C] z-10">Room</th>
               {nextDays.map((d) => (
-                <th key={d} className="px-2 py-3 text-[9px] text-white/40 font-normal text-center w-10">
+                <th key={d} className="px-1 py-3 text-[9px] text-white/40 font-normal text-center w-9">
                   {new Date(d).getDate()}
-                  <div className="text-[8px] text-white/20">{["Su","Mo","Tu","We","Th","Fr","Sa"][new Date(d).getDay()]}</div>
+                  <div className="text-[7px] text-white/20">{["Su","Mo","Tu","We","Th","Fr","Sa"][new Date(d).getDay()]}</div>
                 </th>
               ))}
             </tr>
@@ -78,12 +132,20 @@ export default function InventoryPage() {
           <tbody>
             {rooms.map((room: any) => (
               <tr key={room.id} className="border-b border-white/5">
-                <td className="px-4 py-3 text-white/80 text-xs">{room.name}</td>
+                <td className="px-4 py-3 text-white/80 text-xs sticky left-0 bg-[#0A0D0C] z-10">{room.name}</td>
                 {nextDays.map((d) => {
                   const st = statusFor(room.id, room.name, d);
+                  const isBlocked = st === "blocked";
                   return (
-                    <td key={d} className={`px-2 py-3 text-center ${STATUS_COLORS[st]} border-l border-white/[0.02]`}>
-                      <span className="text-[8px] text-white/40">{st === "available" ? "✓" : st === "occupied" ? "●" : st === "reserved" ? "○" : "—"}</span>
+                    <td
+                      key={d}
+                      onClick={() => toggleBlock(room.id, d)}
+                      className={`px-1 py-3 text-center ${STATUS_COLORS[st]} border-l border-white/[0.02] cursor-pointer hover:ring-1 hover:ring-white/20 transition`}
+                      title={isBlocked ? "Click to unblock" : "Click to block"}
+                    >
+                      <span className="text-[9px] text-white/50">
+                        {st === "available" ? "✓" : st === "occupied" ? "●" : st === "reserved" ? "○" : isBlocked ? "🔒" : "—"}
+                      </span>
                     </td>
                   );
                 })}

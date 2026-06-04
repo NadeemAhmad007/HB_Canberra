@@ -46,7 +46,7 @@ export default function CalendarPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-light" style={{ fontFamily: "var(--font-display)" }}>Calendar</h1><p className="mt-1 text-sm text-white/50">Drag to create or resize bookings</p></div>
+        <div><h1 className="text-2xl font-light" style={{ fontFamily: "var(--font-display)" }}>Calendar</h1><p className="mt-1 text-sm text-white/50">Monthly view — hover to see booking details</p></div>
         <div className="flex items-center gap-3">
           <button onClick={() => { if (month === 0) { setMonth(11); setYear(year - 1); } else setMonth(month - 1); }} className="rounded-xl border border-white/10 px-4 py-2 text-sm hover:bg-white/5">←</button>
           <span className="text-sm font-light min-w-24 text-center">{MONTHS[month]} {year}</span>

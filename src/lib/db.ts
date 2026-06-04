@@ -14,6 +14,8 @@ export interface Room {
   max_adults: number;
   max_children: number;
   child_policy: string;
+  active: boolean;
+  status: string;
 }
 
 export interface Season {
@@ -65,8 +67,8 @@ export async function upsertRooms(rooms: Room[]) {
   const sql = getSql();
   for (const r of rooms) {
     await sql`
-      INSERT INTO rooms (id, name, units, base_price, max_adults, max_children, child_policy, updated_at)
-      VALUES (${r.id}, ${r.name}, ${r.units}, ${r.base_price}, ${r.max_adults}, ${r.max_children}, ${r.child_policy}, now())
+      INSERT INTO rooms (id, name, units, base_price, max_adults, max_children, child_policy, active, status, updated_at)
+      VALUES (${r.id}, ${r.name}, ${r.units}, ${r.base_price}, ${r.max_adults}, ${r.max_children}, ${r.child_policy}, ${r.active ?? true}, ${r.status || 'available'}, now())
       ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
         units = EXCLUDED.units,
@@ -74,6 +76,8 @@ export async function upsertRooms(rooms: Room[]) {
         max_adults = EXCLUDED.max_adults,
         max_children = EXCLUDED.max_children,
         child_policy = EXCLUDED.child_policy,
+        active = EXCLUDED.active,
+        status = EXCLUDED.status,
         updated_at = now()
     `;
   }
