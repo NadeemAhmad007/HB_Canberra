@@ -31,7 +31,6 @@ export default function BookingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
-  const [showTour, setShowTour] = useState(false);
   const [availData, setAvailData] = useState<Record<string, { blocked: string[]; bookings: any[]; totalUnits: number }>>({});
 
   useEffect(() => { fetchPms(); }, [fetchPms]);
@@ -74,7 +73,6 @@ export default function BookingPage() {
   const maxUnits = selectedRoom?.availableUnits ?? selectedRoom?.units ?? 1;
   const minDate = new Date().toISOString().slice(0, 10);
   const cancellationPolicy = settings?.cancellation_policy || "Free cancellation up to 7 days before check-in. 50% charge within 7 days. No refund after check-in.";
-  const tourUrl = selectedRoom?.tourUrl || "";
 
   // Availability calendar for selected room
   const today = new Date();
@@ -174,43 +172,6 @@ export default function BookingPage() {
               <div className="flex items-center justify-center py-20 text-sm text-white/50">Loading rates...</div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-8">
-                {/* Room gallery & virtual tour */}
-                {selectedRoom && (
-                  <div className="rounded-2xl border border-white/10 overflow-hidden">
-                    <div className="aspect-video relative bg-white/[0.03] flex items-center justify-center overflow-hidden">
-                      {tourUrl && !showTour && (
-                        <button type="button" onClick={() => setShowTour(true)} className="flex items-center gap-3 rounded-full bg-white/10 backdrop-blur-md px-6 py-3 text-sm hover:bg-white/20 transition z-10">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-5 w-5"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16" fill="currentColor" stroke="none"/></svg>
-                          Take 360° Virtual Tour
-                        </button>
-                      )}
-                      {tourUrl && showTour && (
-                        <div className="absolute inset-0">
-                          <iframe id="tour-embeded" name="Houseboat Canberra" src={tourUrl} frameBorder="0" width="100%" height="100%" scrolling="no" allow="vr; xr; accelerometer; gyroscope; autoplay;" />
-                          <button type="button" onClick={() => setShowTour(false)} className="absolute top-3 right-3 rounded-full bg-black/60 px-3 py-1 text-[10px] uppercase tracking-wider text-white/80">Close Tour</button>
-                        </div>
-                      )}
-                      {!tourUrl && (
-                        <div className="text-white/20 text-sm flex flex-col items-center gap-2">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="h-10 w-10"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-                          <span>Room gallery</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-5">
-                      <h3 className="text-xl font-light" style={{ fontFamily: "var(--font-display)" }}>{selectedRoom.name}</h3>
-                      {selectedRoom.description && <p className="mt-2 text-sm text-white/60 leading-relaxed">{selectedRoom.description}</p>}
-                      {selectedRoom.amenities && selectedRoom.amenities.length > 0 && (
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          {(selectedRoom.amenities as string[]).map((a: string) => (
-                            <span key={a} className="rounded-full border border-white/10 px-3 py-1 text-[10px] uppercase tracking-wider text-white/50">{a}</span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
                 {/* Availability calendar */}
                 {selectedRoom && (
                   <div className="rounded-2xl border border-white/10 p-5">
@@ -301,7 +262,7 @@ export default function BookingPage() {
 
                 {/* Room selection */}
                 <Field label="Suite">
-                  <select value={roomId} onChange={(e) => { setRoomId(e.target.value); setUnits(1); setShowTour(false); }} className="booking-input">
+                  <select value={roomId} onChange={(e) => { setRoomId(e.target.value); setUnits(1); }} className="booking-input">
                     {pmsRooms.map((r) => {
                       const avail = r.availableUnits ?? r.units;
                       return (

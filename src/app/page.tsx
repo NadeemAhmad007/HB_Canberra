@@ -16,6 +16,7 @@ import { BookingPanel } from "@/components/ui/BookingPanel";
 import { CinematicLoader } from "@/components/ui/CinematicLoader";
 import { Footer } from "@/components/ui/Footer";
 import { Soundscape } from "@/components/ui/Soundscape";
+import { GallerySection } from "@/components/sections/GallerySection";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -183,6 +184,7 @@ export default function Home() {
         ))}
         <div className="h-[40vh]" />
       </div>
+      <GallerySection />
       <Footer />
     </main>
   );
