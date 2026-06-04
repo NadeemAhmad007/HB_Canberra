@@ -183,7 +183,7 @@ export default function BookingPage() {
                         </div>
                       ) : tourUrl && showTour ? (
                         <div className="relative w-full h-full">
-                          <iframe id="tour-embeded" name="Houseboat Canberra" src={tourUrl} frameBorder="0" width="100%" height="100%" scrolling="no" allowvr="yes" allow="vr; xr; accelerometer; gyroscope; autoplay;" allowFullScreen={false} />
+                          <iframe id="tour-embeded" name="Houseboat Canberra" src={tourUrl} frameBorder="0" width="100%" height="100%" scrolling="no" allow="vr; xr; accelerometer; gyroscope; autoplay;" />
                           <button type="button" onClick={() => setShowTour(false)} className="absolute top-3 right-3 rounded-full bg-black/60 px-3 py-1 text-[10px] uppercase tracking-wider text-white/80">Close Tour</button>
                         </div>
                       ) : (
