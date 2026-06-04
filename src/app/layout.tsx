@@ -4,9 +4,19 @@ import { GoogleAnalytics } from "@/components/seo/GoogleAnalytics";
 import { JsonLd } from "@/components/seo/JsonLd";
 
 const SITE_URL = "https://houseboatcanberra.com";
-const OG_IMAGE = `${SITE_URL}/og.svg`;
+const OG_IMAGE = `${SITE_URL}/opengraph-image.png`;
 const PHONE = "+919149670483";
 const EMAIL = "Houseboat.canberra@gmail.com";
+
+// Google Business rating — set GOOGLE_RATING_VALUE and GOOGLE_REVIEW_COUNT in
+// Vercel env. If unset, the aggregateRating block is omitted entirely so we
+// never emit fake review counts.
+const RATING_VALUE = process.env.GOOGLE_RATING_VALUE
+  ? Number(process.env.GOOGLE_RATING_VALUE)
+  : null;
+const REVIEW_COUNT = process.env.GOOGLE_REVIEW_COUNT
+  ? Number(process.env.GOOGLE_REVIEW_COUNT)
+  : null;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -118,6 +128,17 @@ const HOTEL_JSON_LD = {
     { "@type": "LocationFeatureSpecification", name: "Restaurant", value: true },
   ],
   starRating: { "@type": "Rating", ratingValue: "4.8" },
+  ...(RATING_VALUE && REVIEW_COUNT
+    ? {
+        aggregateRating: {
+          "@type": "AggregateRating",
+          ratingValue: RATING_VALUE,
+          reviewCount: REVIEW_COUNT,
+          bestRating: 5,
+          worstRating: 1,
+        },
+      }
+    : {}),
   petsAllowed: false,
   checkinTime: "14:00",
   checkoutTime: "11:00",
