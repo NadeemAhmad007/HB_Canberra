@@ -306,7 +306,7 @@ export async function createUser(user: { name: string; email: string; password_h
     INSERT INTO users (name, email, password_hash, role)
     VALUES (${user.name}, ${user.email}, ${user.password_hash}, ${user.role})
     RETURNING id, name, email, role, created_at
-  ` as unknown;
+  ` as unknown as Array<{ id: number; name: string; email: string; role: string; created_at: string }>;
   return row;
 }
 export async function updateUser(id: number, data: { name?: string; email?: string; role?: string; active?: boolean }) {
@@ -385,7 +385,7 @@ export async function createInvoice(inv: {
     INSERT INTO invoices (booking_ref, invoice_no, guest_name, items, subtotal, tax, total, currency)
     VALUES (${inv.booking_ref}, ${inv.invoice_no}, ${inv.guest_name}, ${JSON.stringify(inv.items)}, ${inv.subtotal}, ${inv.tax}, ${inv.total}, ${inv.currency})
     RETURNING id, invoice_no, created_at
-  ` as unknown;
+  ` as unknown as Array<{ id: number; invoice_no: string; created_at: string }>;
   return row;
 }
 export async function updateInvoiceStatus(id: number, status: string) {
