@@ -41,20 +41,20 @@ export async function GET(request: Request) {
   let dbSettings: Record<string, string> = {};
 
   try {
-    const sql = (await import("@/lib/db")).getSql;
-    const [r, s, m, p, bl, st] = await Promise.all([
+    [dbRooms, dbSeasons, dbMeals, dbProperty, dbBlocked] = await Promise.all([
       (await import("@/lib/db")).getRooms().catch(() => []),
       getSeasons().catch(() => []),
       getMealPlans().catch(() => []),
       getPropertyConfig().catch(() => ({})),
       getBlockedDates().catch(() => []),
-      sql().catch(() => null),
     ]);
-    dbRooms = r; dbSeasons = s; dbMeals = m; dbProperty = p; dbBlocked = bl;
-    if (st) {
-      const rows = await st`SELECT * FROM settings ORDER BY key` as unknown as Array<{ key: string; value: string }>;
+    // Fetch settings separately (sql() is not a Promise, can't .catch chain)
+    try {
+      const sql = (await import("@/lib/db")).getSql;
+      const db = sql();
+      const rows = await db`SELECT * FROM settings ORDER BY key` as unknown as Array<{ key: string; value: string }>;
       for (const row of rows) dbSettings[row.key] = row.value;
-    }
+    } catch { }
   } catch { }
 
   const useFallback = dbRooms.length === 0;
