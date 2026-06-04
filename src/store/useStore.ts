@@ -5,6 +5,9 @@ import { hotel as defaultHotel } from "@/content/houseboat-canberra";
 export interface PmsRoom {
   id: number;
   name: string;
+  description: string;
+  amenities: string[];
+  tourUrl: string;
   units: number;
   availableUnits: number;
   basePrice: number;
@@ -32,6 +35,7 @@ export interface PmsData {
   seasons: PmsSeason[];
   mealPlans: PmsMealPlan[];
   blockedDates: Record<number, string[]>;
+  settings: Record<string, string>;
 }
 
 interface SceneState {

@@ -12,6 +12,19 @@ import {
   replaceBlockedDates,
   createBooking,
   getBlockedDates,
+  addActivityLog,
+  getActivityLog,
+  getUsers,
+  createUser,
+  updateUser,
+  getEmailTemplates,
+  updateEmailTemplate,
+  getHousekeepingTasks,
+  upsertHousekeepingTask,
+  getInvoices,
+  createInvoice,
+  updateInvoiceStatus,
+  bulkUpdateBookingStatus,
 } from "@/lib/db";
 import { neon } from "@neondatabase/serverless";
 
@@ -28,14 +41,13 @@ function unauthorized() {
 function checkAuth(request: Request) {
   const auth = request.headers.get("authorization");
   const password = process.env.ADMIN_PASSWORD;
-  if (!password) return true; // no password configured = open access
+  if (!password) return true;
   if (!auth || !auth.startsWith("Bearer ")) return false;
   return auth.slice(7) === password;
 }
 
 export async function GET(request: Request) {
   if (!checkAuth(request)) return unauthorized();
-
   const url = new URL(request.url);
   const resource = url.searchParams.get("resource") || "bookings";
 
@@ -81,6 +93,28 @@ export async function GET(request: Request) {
         const map: Record<string, string> = {};
         for (const r of rows) map[r.key] = r.value;
         return NextResponse.json(map);
+      }
+      case "activity": {
+        const limit = parseInt(url.searchParams.get("limit") || "100");
+        const log = await getActivityLog(limit);
+        return NextResponse.json(log);
+      }
+      case "users": {
+        const users = await getUsers();
+        return NextResponse.json(users);
+      }
+      case "email-templates": {
+        const templates = await getEmailTemplates();
+        return NextResponse.json(templates);
+      }
+      case "housekeeping": {
+        const date = url.searchParams.get("date") || undefined;
+        const tasks = await getHousekeepingTasks(date);
+        return NextResponse.json(tasks);
+      }
+      case "invoices": {
+        const invoices = await getInvoices();
+        return NextResponse.json(invoices);
       }
       case "dashboard": {
         const [bookings, rooms, seasons, meals, config] = await Promise.all([
@@ -133,6 +167,50 @@ export async function PUT(request: Request) {
         const { bookingRef, status, stripePaymentIntent } = data;
         const sql = (await import("@/lib/db")).updateBookingStatus;
         await sql(bookingRef, status, stripePaymentIntent);
+        await addActivityLog("booking_status", "booking", bookingRef, `Status changed to ${status}`);
+        return NextResponse.json({ ok: true });
+      }
+      case "bulk-booking-status": {
+        const { refs, status } = data;
+        await bulkUpdateBookingStatus(refs, status);
+        await addActivityLog("bulk_booking_status", "booking", refs.join(","), `Bulk status change to ${status} (${refs.length} bookings)`);
+        return NextResponse.json({ ok: true });
+      }
+      case "checkin": {
+        const sql = (await import("@/lib/db")).getSql;
+        const db = sql();
+        await db`UPDATE bookings SET status = 'checked-in', checkin_at = now(), updated_at = now() WHERE booking_ref = ${data.bookingRef}`;
+        await addActivityLog("checkin", "booking", data.bookingRef, `Guest checked in`);
+        return NextResponse.json({ ok: true });
+      }
+      case "checkout": {
+        const sql = (await import("@/lib/db")).getSql;
+        const db = sql();
+        await db`UPDATE bookings SET status = 'checked-out', checkout_at = now(), updated_at = now() WHERE booking_ref = ${data.bookingRef}`;
+        await addActivityLog("checkout", "booking", data.bookingRef, `Guest checked out`);
+        return NextResponse.json({ ok: true });
+      }
+      case "user": {
+        await updateUser(data.id, data);
+        return NextResponse.json({ ok: true });
+      }
+      case "email-template": {
+        await updateEmailTemplate(data.id, data);
+        return NextResponse.json({ ok: true });
+      }
+      case "housekeeping": {
+        await upsertHousekeepingTask(data);
+        return NextResponse.json({ ok: true });
+      }
+      case "invoice-status": {
+        await updateInvoiceStatus(data.id, data.status);
+        return NextResponse.json({ ok: true });
+      }
+      case "settings": {
+        const sql = getSql();
+        for (const [key, value] of Object.entries(data)) {
+          await sql`INSERT INTO settings (key, value, updated_at) VALUES (${key}, ${String(value)}, now()) ON CONFLICT (key) DO UPDATE SET value = ${String(value)}, updated_at = now()`;
+        }
         return NextResponse.json({ ok: true });
       }
       default:
@@ -152,6 +230,14 @@ export async function POST(request: Request) {
     if (body.resource === "booking") {
       const b = await createBooking(body.data);
       return NextResponse.json(b);
+    }
+    if (body.resource === "user") {
+      const user = await createUser(body.data);
+      return NextResponse.json(user);
+    }
+    if (body.resource === "invoice") {
+      const inv = await createInvoice(body.data);
+      return NextResponse.json(inv);
     }
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (error) {

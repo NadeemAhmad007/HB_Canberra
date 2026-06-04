@@ -26,10 +26,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (!checked) return null;
   if (!token && pathname !== "/admin/login") return null;
 
+  const handleLogout = () => {
+    setToken("");
+    sessionStorage.removeItem(PASSWORD_KEY);
+    sessionStorage.removeItem("admin_user");
+    router.push("/admin/login");
+  };
+
   return (
     <ToastProvider>
       {token ? (
-        <AdminShell token={token} onLogout={() => { setToken(""); sessionStorage.removeItem(PASSWORD_KEY); router.push("/admin/login"); }}>
+        <AdminShell token={token} onLogout={handleLogout}>
           {children}
         </AdminShell>
       ) : (

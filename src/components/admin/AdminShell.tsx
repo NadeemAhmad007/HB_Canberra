@@ -3,20 +3,26 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, CalendarDays, BookOpen, DoorOpen, DollarSign, Palmtree, Store, Users, BarChart3, Bell, Settings, ChevronLeft, Search, LogOut, Hotel } from "lucide-react";
+import { LayoutDashboard, CalendarDays, BookOpen, DoorOpen, DollarSign, Palmtree, Store, Users, BarChart3, Bell, Settings, ChevronLeft, Search, LogOut, Hotel, UserCheck, Sparkles, FileText, Activity, Mail, Shield } from "lucide-react";
 import clsx from "clsx";
 
 const navItems = [
   { href: "/admin", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/admin/bookings", icon: BookOpen, label: "Bookings" },
+  { href: "/admin/checkin", icon: UserCheck, label: "Check-in/Out" },
   { href: "/admin/calendar", icon: CalendarDays, label: "Calendar" },
   { href: "/admin/rooms", icon: DoorOpen, label: "Rooms" },
+  { href: "/admin/housekeeping", icon: Sparkles, label: "Housekeeping" },
   { href: "/admin/rates", icon: DollarSign, label: "Rates" },
   { href: "/admin/seasons", icon: Palmtree, label: "Seasons" },
   { href: "/admin/inventory", icon: Store, label: "Inventory" },
   { href: "/admin/guests", icon: Users, label: "Guests" },
+  { href: "/admin/invoices", icon: FileText, label: "Invoices" },
   { href: "/admin/reports", icon: BarChart3, label: "Reports" },
-  { href: "/admin/notifications", icon: Bell, label: "Notifications" },
+  { href: "/admin/users", icon: Shield, label: "Users" },
+  { href: "/admin/activity", icon: Activity, label: "Activity" },
+  { href: "/admin/email-templates", icon: Mail, label: "Emails" },
+  { href: "/admin/notifications", icon: Bell, label: "Notify" },
   { href: "/admin/settings", icon: Settings, label: "Settings" },
 ];
 

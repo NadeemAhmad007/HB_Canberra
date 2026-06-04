@@ -11,11 +11,12 @@ import {
   replaceSeasons,
   replaceMealPlans,
   replacePropertyConfig,
+  addActivityLog,
 } from "@/lib/db";
 
-const FALLBACK_ROOMS: Array<{ id: number; name: string; units: number; base_price: number; max_adults: number; max_children: number; child_policy: string; active: boolean; status: string }> = [
-  { id: 1, name: "Deluxe Room", units: 2, base_price: 11500, max_adults: 2, max_children: 2, child_policy: "1 child above 10, 2 children below 10", active: true, status: "available" },
-  { id: 3, name: "Family Suite", units: 1, base_price: 24500, max_adults: 4, max_children: 2, child_policy: "2 children below 12", active: true, status: "available" },
+const FALLBACK_ROOMS = [
+  { id: 1, name: "Deluxe Room", description: "Elegant lake-view room with handcrafted Kashmiri furnishings, overlooking the pristine waters of Dal Lake.", amenities: ["Lake View", "King Bed", "Ensuite Bathroom", "Heating", "Mini Bar", "WiFi", "Tea/Coffee Maker"], units: 2, base_price: 11500, max_adults: 2, max_children: 2, child_policy: "1 child above 10, 2 children below 10", active: true, status: "available", tour_url: "https://tour.panoee.net/iframe/690596e5eac32b09e73f0ee0" },
+  { id: 3, name: "Family Suite", description: "Spacious two-bedroom suite ideal for families, with panoramic views of the Himalayan foothills.", amenities: ["Panoramic View", "2 Bedrooms", "Living Room", "Ensuite Bathroom", "Heating", "Mini Bar", "WiFi", "Kitchenette"], units: 1, base_price: 24500, max_adults: 4, max_children: 2, child_policy: "2 children below 12", active: true, status: "available", tour_url: "https://tour.panoee.net/iframe/690596e5eac32b09e73f0ee0" },
 ];
 const FALLBACK_SEASONS = [
   { start_date: "2026-04-01", end_date: "2026-09-30", multiplier: 1.0 },
@@ -28,47 +29,45 @@ const FALLBACK_MEALS = [
   { code: "AP", name: "American Plan (All meals)", price: 3200 },
 ];
 
-/**
- * GET /api/pms — returns all PMS data for the front-end.
- * Always returns data — falls back to hardcoded defaults when DB is unavailable.
- * Optional query params: checkIn, checkOut — returns availableUnits per room.
- */
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const checkIn = url.searchParams.get("checkIn");
   const checkOut = url.searchParams.get("checkOut");
-  let dbRooms: (typeof FALLBACK_ROOMS)[number][] = [];
-  let dbSeasons: (typeof FALLBACK_SEASONS)[number][] = [];
-  let dbMeals: (typeof FALLBACK_MEALS)[number][] = [];
+  let dbRooms: any[] = [];
+  let dbSeasons: any[] = [];
+  let dbMeals: any[] = [];
   let dbProperty: Record<string, string> = {};
   let dbBlocked: { room_id: number; date: string }[] = [];
+  let dbSettings: Record<string, string> = {};
 
   try {
-    [dbRooms, dbSeasons, dbMeals, dbProperty, dbBlocked] = await Promise.all([
-      getRooms().catch(() => []),
+    const sql = (await import("@/lib/db")).getSql;
+    const [r, s, m, p, bl, st] = await Promise.all([
+      (await import("@/lib/db")).getRooms().catch(() => []),
       getSeasons().catch(() => []),
       getMealPlans().catch(() => []),
       getPropertyConfig().catch(() => ({})),
       getBlockedDates().catch(() => []),
+      sql().catch(() => null),
     ]);
-  } catch {
-    // all failed — use fallback
-  }
+    dbRooms = r; dbSeasons = s; dbMeals = m; dbProperty = p; dbBlocked = bl;
+    if (st) {
+      const rows = await st`SELECT * FROM settings ORDER BY key` as unknown as Array<{ key: string; value: string }>;
+      for (const row of rows) dbSettings[row.key] = row.value;
+    }
+  } catch { }
 
   const useFallback = dbRooms.length === 0;
 
-  // Auto-seed if DB is empty — first request populates data
   if (useFallback) {
     try {
       await Promise.all([
-        upsertRooms(FALLBACK_ROOMS),
+        upsertRooms(FALLBACK_ROOMS.map(r => ({ ...r, amenities: JSON.stringify(r.amenities), active: r.active, status: r.status })) as any),
         replaceSeasons(FALLBACK_SEASONS),
         replaceMealPlans(FALLBACK_MEALS),
         replacePropertyConfig({ GST: "18", NAME: "Houseboat Canberra", ADDRESS: "Dal Lake, Srinagar", CURRENCY: "INR" }),
       ]);
-    } catch {
-      // seed failed, stay on fallback
-    }
+    } catch { }
   }
 
   const activeRooms = useFallback ? FALLBACK_ROOMS : dbRooms;
@@ -85,7 +84,7 @@ export async function GET(request: Request) {
   }
 
   const today = new Date().toISOString().slice(0, 10);
-  const roomsWithPrices = await Promise.all(activeRooms.map(async (r) => {
+  const roomsWithPrices = await Promise.all(activeRooms.map(async (r: any) => {
     let multiplier = 1;
     for (const s of activeSeasons) {
       if (today >= s.start_date && today <= s.end_date) {
@@ -100,6 +99,9 @@ export async function GET(request: Request) {
     return {
       id: r.id,
       name: r.name,
+      description: r.description || "",
+      amenities: typeof r.amenities === "string" ? JSON.parse(r.amenities) : (r.amenities || []),
+      tourUrl: r.tour_url || "",
       units: r.units,
       availableUnits,
       basePrice: r.base_price,
@@ -116,39 +118,41 @@ export async function GET(request: Request) {
     seasons: activeSeasons,
     mealPlans: activeMeals,
     blockedDates: blocked,
+    settings: dbSettings,
     _fallback: useFallback,
   });
 }
 
-/**
- * POST /api/pms — submits a booking enquiry.
- * Writes to Neon database first, then attempts to sync to Google Sheets.
- */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { guestName, phone, email, roomId, mealCode, adults, children, units, checkIn, checkOut, nights, amount } = body;
+    const { guestName, phone, email, roomId, mealCode, adults, children, units, checkIn, checkOut, nights, amount, notes, tcAccepted } = body;
 
     if (!checkIn || !checkOut || !roomId) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    const roomIdNum = parseInt(String(roomId));
+    const available = await getAvailableUnits(roomIdNum, checkIn, checkOut).catch(() => 0);
+    const unitsRequested = units || 1;
+    if (available < unitsRequested) {
       return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
+        { error: `Only ${available} unit(s) available for the selected dates` }, { status: 409 }
       );
     }
 
     const ref = "HBC-" + new Date().toISOString().slice(0, 10).replace(/-/g, "") + "-" + String(Math.floor(Math.random() * 900) + 100);
 
-    // Save to Neon
     await createBooking({
       booking_ref: ref,
       guest_name: guestName || "Guest",
       phone: phone || "",
       email: email || "",
-      room_id: parseInt(String(roomId)),
+      room_id: roomIdNum,
       meal_code: mealCode || "",
       adults: adults || 1,
       children: children || 0,
-      units: units || 1,
+      units: unitsRequested,
       check_in: checkIn,
       check_out: checkOut,
       nights: nights || 1,
@@ -157,19 +161,52 @@ export async function POST(request: Request) {
       stripe_payment_intent: "",
       status: "pending",
       invoice_url: "",
+      notes: notes || "",
+      tc_accepted: !!tcAccepted,
     });
+
+    // Activity log
+    try {
+      await addActivityLog("booking_created", "booking", ref, `Booking created via website: ${guestName}`, "website");
+    } catch { }
+
+    // Send confirmation email async (non-blocking)
+    if (email) {
+      try {
+        const { Resend } = await import("resend");
+        const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
+        const rooms = await getRooms().catch(() => []);
+        const roomName = (rooms as any[]).find((r: any) => r.id === roomIdNum)?.name || "Selected Room";
+        await resend.emails.send({
+          from: `Houseboat Canberra <${process.env.EMAIL_FROM || "onboarding@resend.dev"}>`,
+          to: email,
+          subject: `Booking Enquiry Received — ${ref}`,
+          html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+            <h2 style="color:#C8A86B">Thank you, ${guestName}!</h2>
+            <p>Your booking enquiry has reached the reservations desk at <strong>Houseboat Canberra</strong>.</p>
+            <table style="width:100%;border-collapse:collapse;margin:24px 0">
+              <tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;color:#666">Reference</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px"><strong>${ref}</strong></td></tr>
+              <tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;color:#666">Room</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px">${roomName} × ${unitsRequested}</td></tr>
+              <tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;color:#666">Check-in</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px">${checkIn}</td></tr>
+              <tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;color:#666">Check-out</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px">${checkOut}</td></tr>
+              <tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;color:#666">Guests</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px">${adults} adults, ${children} children</td></tr>
+              <tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;color:#666">Total</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px"><strong>₹${(amount || 0).toLocaleString()}</strong></td></tr>
+            </table>
+            <p style="color:#666;font-size:14px">You will hear from us within the hour to confirm your stay.</p>
+            <hr style="border:none;border-top:1px solid #eee;margin:24px 0" />
+            <p style="color:#999;font-size:12px">Houseboat Canberra — Dal Lake, Srinagar</p>
+          </div>`,
+        });
+      } catch { }
+    }
 
     return NextResponse.json({
       ok: true,
       ref,
-      message:
-        "Your request has reached the reservations desk. You will hear from us within the hour.",
+      message: "Your request has reached the reservations desk. You will hear from us within the hour.",
     });
   } catch (error) {
     console.error("[PMS] POST error:", error);
-    return NextResponse.json(
-      { error: "Failed to submit booking" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to submit booking" }, { status: 500 });
   }
 }

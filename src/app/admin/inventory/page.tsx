@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Skeleton } from "@/components/admin/Skeleton";
 import { EmptyState } from "@/components/admin/Skeleton";
 import { useToast } from "@/components/admin/Toast";
-import { ChevronLeft, ChevronRight, Lock, Unlock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Lock } from "lucide-react";
 
 const token = () => sessionStorage.getItem("admin_token") || "";
 const h = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token()}` });
@@ -51,10 +51,18 @@ export default function InventoryPage() {
   const safeBookings = Array.isArray(bookings) ? bookings : [];
   const safeBlocked = Array.isArray(blockedDates) ? blockedDates : [];
 
+  // Expand rooms into per-unit rows
+  const unitRows = rooms.flatMap((room: any) =>
+    Array.from({ length: room.units || 1 }, (_, ui) => ({
+      id: `${room.id}-${ui + 1}`,
+      roomId: room.id,
+      label: room.units > 1 ? `${room.name} ${ui + 1}` : room.name,
+      roomName: room.name,
+    }))
+  );
+
   const statusFor = (roomId: number, roomName: string, date: string): string => {
-    const isBlocked = safeBlocked.some((bd: any) =>
-      (parseInt(bd.room_id) === roomId || bd.room_id === roomId) && bd.date === date
-    );
+    const isBlocked = safeBlocked.some((bd: any) => parseInt(bd.room_id) === roomId && bd.date === date);
     if (isBlocked) return "blocked";
     const b = safeBookings.find((x: any) =>
       x.room_name === roomName &&
@@ -67,9 +75,7 @@ export default function InventoryPage() {
   };
 
   const toggleBlock = async (roomId: number, date: string) => {
-    const isBlocked = safeBlocked.some((bd: any) =>
-      (parseInt(bd.room_id) === roomId || bd.room_id === roomId) && bd.date === date
-    );
+    const isBlocked = safeBlocked.some((bd: any) => parseInt(bd.room_id) === roomId && bd.date === date);
     const current: Record<string, string[]> = {};
     rooms.forEach((r: any) => { current[r.id] = []; });
     safeBlocked.forEach((bd: any) => {
@@ -94,7 +100,7 @@ export default function InventoryPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div><h1 className="text-2xl font-light" style={{ fontFamily: "var(--font-display)" }}>Inventory</h1><p className="mt-1 text-sm text-white/50">Click a date to block/unblock a room</p></div>
+        <div><h1 className="text-2xl font-light" style={{ fontFamily: "var(--font-display)" }}>Inventory</h1><p className="mt-1 text-sm text-white/50">Click a date to block/unblock that room type</p></div>
         <div className="flex items-center gap-3">
           <div className="flex rounded-xl border border-white/10 overflow-hidden">
             {[14, 30, 60].map((d) => (
@@ -111,16 +117,14 @@ export default function InventoryPage() {
         {STATUSES.map((s) => (
           <span key={s} className="flex items-center gap-2"><span className={`inline-block h-3 w-3 rounded ${STATUS_COLORS[s]}`} />{s}</span>
         ))}
-        <span className="flex items-center gap-1 text-white/30 ml-auto">
-          <Lock className="h-3 w-3" /> Click to toggle block
-        </span>
+        <span className="flex items-center gap-1 text-white/30 ml-auto"><Lock className="h-3 w-3" /> Click date to toggle block</span>
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-white/10">
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-white/10 bg-white/[0.02]">
-              <th className="px-4 py-3 text-[10px] uppercase tracking-wider text-white/40 font-normal w-40 sticky left-0 bg-[#0A0D0C] z-10">Room</th>
+              <th className="px-4 py-3 text-[10px] uppercase tracking-wider text-white/40 font-normal w-40 sticky left-0 bg-[#0A0D0C] z-10">Unit</th>
               {nextDays.map((d) => (
                 <th key={d} className="px-1 py-3 text-[9px] text-white/40 font-normal text-center w-9">
                   {new Date(d).getDate()}
@@ -130,27 +134,27 @@ export default function InventoryPage() {
             </tr>
           </thead>
           <tbody>
-            {rooms.map((room: any) => (
-              <tr key={room.id} className="border-b border-white/5">
-                <td className="px-4 py-3 text-white/80 text-xs sticky left-0 bg-[#0A0D0C] z-10">{room.name}</td>
-                {nextDays.map((d) => {
-                  const st = statusFor(room.id, room.name, d);
-                  const isBlocked = st === "blocked";
-                  return (
-                    <td
-                      key={d}
-                      onClick={() => toggleBlock(room.id, d)}
-                      className={`px-1 py-3 text-center ${STATUS_COLORS[st]} border-l border-white/[0.02] cursor-pointer hover:ring-1 hover:ring-white/20 transition`}
-                      title={isBlocked ? "Click to unblock" : "Click to block"}
-                    >
-                      <span className="text-[9px] text-white/50">
-                        {st === "available" ? "✓" : st === "occupied" ? "●" : st === "reserved" ? "○" : isBlocked ? "🔒" : "—"}
-                      </span>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
+            {unitRows.map((unit) => {
+              const st = "available";
+              return (
+                <tr key={unit.id} className="border-b border-white/5">
+                  <td className="px-4 py-2.5 text-white/70 text-xs sticky left-0 bg-[#0A0D0C] z-10">{unit.label}</td>
+                  {nextDays.map((d) => {
+                    const cellStatus = statusFor(unit.roomId, unit.roomName, d);
+                    return (
+                      <td key={d} onClick={() => toggleBlock(unit.roomId, d)}
+                        className={`px-1 py-2.5 text-center ${STATUS_COLORS[cellStatus]} border-l border-white/[0.02] cursor-pointer hover:ring-1 hover:ring-white/20 transition`}
+                        title={cellStatus === "blocked" ? "Click to unblock" : "Click to block"}
+                      >
+                        <span className="text-[8px] text-white/50">
+                          {cellStatus === "available" ? "✓" : cellStatus === "occupied" ? "●" : cellStatus === "reserved" ? "○" : "🔒"}
+                        </span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
