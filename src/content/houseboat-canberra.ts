@@ -238,7 +238,7 @@ export const hotel: Hotel = {
       name: "Wellness",
       kicker: "Chapter 09",
       scrollAnchor: 0.8,
-      panorama: "/panoramas/garden-2.jpg",
+      panorama: "/panoramas/garden-1.jpg",
       camera: cam(0.20, 60, 0),
       theme: "light",
       headline: "Quiet. Warmth. The sound of water.",
