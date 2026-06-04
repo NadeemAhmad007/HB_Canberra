@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/admin/Skeleton";
 import { EmptyState } from "@/components/admin/Skeleton";
 import { Modal } from "@/components/admin/Dialogs";
 import { useToast } from "@/components/admin/Toast";
-import { usePoll } from "@/lib/usePoll";
+import { useSmartPoll } from "@/lib/useSmartPoll";
 import { CheckSquare, Square, DollarSign } from "lucide-react";
 
 const token = () => sessionStorage.getItem("admin_token") || "";
@@ -43,7 +43,7 @@ export default function BookingsPage() {
 
   useEffect(() => { fetchData(); }, []);
 
-  usePoll(fetchData, 60000, true);
+  useSmartPoll(fetchData, 15000, true);
 
   const toggleSelect = (ref: string) => {
     setSelectedRefs((prev) => {

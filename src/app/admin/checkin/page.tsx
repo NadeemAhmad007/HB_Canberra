@@ -5,7 +5,7 @@ import { Badge } from "@/components/admin/Badge";
 import { Skeleton } from "@/components/admin/Skeleton";
 import { EmptyState } from "@/components/admin/Skeleton";
 import { useToast } from "@/components/admin/Toast";
-import { usePoll } from "@/lib/usePoll";
+import { useSmartPoll } from "@/lib/useSmartPoll";
 import { UserCheck, UserX, CalendarDays, Search, IdCard } from "lucide-react";
 import { Modal } from "@/components/admin/Dialogs";
 
@@ -32,7 +32,7 @@ export default function CheckinPage() {
 
   useEffect(() => { fetchData(); }, []);
 
-  usePoll(fetchData, 60000, true);
+  useSmartPoll(fetchData, 15000, true);
 
   const today = new Date().toISOString().slice(0, 10);
 
