@@ -135,7 +135,18 @@ export async function replaceBlockedDates(dates: { room_id: number; date: string
 
 export async function getAllBookings() {
   const res = await query(
-    "SELECT * FROM bookings ORDER BY created_at DESC"
+    `SELECT id, booking_ref, guest_name, phone, email, room_id,
+            to_char(check_in, 'YYYY-MM-DD') AS check_in,
+            to_char(check_out, 'YYYY-MM-DD') AS check_out,
+            nights, adults, children, units, amount, currency, meal_code,
+            stripe_payment_intent, status, invoice_url, notes, tc_accepted,
+            to_char(checkin_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS checkin_at,
+            to_char(checkout_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS checkout_at,
+            id_proof,
+            payment_status, payment_gateway, payment_id,
+            to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
+            to_char(updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS updated_at
+       FROM bookings ORDER BY created_at DESC`
   );
   return res.rows as any[];
 }

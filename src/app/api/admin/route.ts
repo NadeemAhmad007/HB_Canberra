@@ -167,27 +167,27 @@ export async function PUT(request: Request) {
       case "booking-status": {
         const { bookingRef, status, stripePaymentIntent } = data;
         await updateBookingStatus(bookingRef, status, stripePaymentIntent);
-        await addActivityLog("booking_status", "booking", bookingRef, `Status changed to ${status}`);
+        try { await addActivityLog("booking_status", "booking", bookingRef, `Status changed to ${status}`); } catch (e) { console.error("[admin] activity log failed:", e); }
         return NextResponse.json({ ok: true });
       }
       case "bulk-booking-status": {
         const { refs, status } = data;
         await bulkUpdateBookingStatus(refs, status);
-        await addActivityLog("bulk_booking_status", "booking", refs.join(","), `Bulk status change to ${status} (${refs.length} bookings)`);
+        try { await addActivityLog("bulk_booking_status", "booking", refs.join(","), `Bulk status change to ${status} (${refs.length} bookings)`); } catch (e) { console.error("[admin] activity log failed:", e); }
         return NextResponse.json({ ok: true });
       }
       case "checkin": {
         const sql = (await import("@/lib/db")).getSql;
         const db = sql();
         await db`UPDATE bookings SET status = 'checked-in', checkin_at = now(), updated_at = now() WHERE booking_ref = ${data.bookingRef}`;
-        await addActivityLog("checkin", "booking", data.bookingRef, `Guest checked in`);
+        try { await addActivityLog("checkin", "booking", data.bookingRef, `Guest checked in`); } catch (e) { console.error("[admin] activity log failed:", e); }
         return NextResponse.json({ ok: true });
       }
       case "checkout": {
         const sql = (await import("@/lib/db")).getSql;
         const db = sql();
         await db`UPDATE bookings SET status = 'checked-out', checkout_at = now(), updated_at = now() WHERE booking_ref = ${data.bookingRef}`;
-        await addActivityLog("checkout", "booking", data.bookingRef, `Guest checked out`);
+        try { await addActivityLog("checkout", "booking", data.bookingRef, `Guest checked out`); } catch (e) { console.error("[admin] activity log failed:", e); }
         return NextResponse.json({ ok: true });
       }
       case "user": {
@@ -210,7 +210,7 @@ export async function PUT(request: Request) {
         const { bookingRef } = data;
         const sql = getSql();
         await sql`UPDATE bookings SET payment_status = 'paid', payment_gateway = 'bank', status = 'confirmed', updated_at = now() WHERE booking_ref = ${bookingRef}`;
-        await addActivityLog("bank_transfer_confirmed", "booking", bookingRef, `Bank transfer confirmed by admin`);
+        try { await addActivityLog("bank_transfer_confirmed", "booking", bookingRef, `Bank transfer confirmed by admin`); } catch (e) { console.error("[admin] activity log failed:", e); }
         return NextResponse.json({ ok: true });
       }
       case "settings": {

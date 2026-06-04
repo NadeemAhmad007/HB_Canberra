@@ -167,6 +167,12 @@ export default function BookingPage() {
   };
 
   if (submitted) {
+    const fmtDate = (s: string) => {
+      if (!s) return "—";
+      const d = new Date(s);
+      if (isNaN(+d)) return s;
+      return d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+    };
     return (
       <main className="min-h-screen bg-[#0A0D0C] text-white">
         <div className="mx-auto max-w-lg px-6 pt-20 pb-16">
@@ -179,7 +185,20 @@ export default function BookingPage() {
             <p className="mt-2 font-mono text-[#C8A86B] text-sm">{bookingRef}</p>
           </div>
 
-          <div className="mt-10 rounded-2xl border border-[#C8A86B]/20 bg-[#C8A86B]/5 p-6">
+          <div className="mt-10 rounded-2xl border border-white/10 bg-white/[0.02] p-6">
+            <h2 className="text-[11px] uppercase tracking-[0.35em] text-white/50 mb-4">Your booking</h2>
+            <div className="space-y-3 text-sm">
+              <Row label="Room" value={selectedRoom ? `${selectedRoom.name}${units > 1 ? ` × ${units}` : ""}` : "—"} />
+              <Row label="Guest" value={`${guestName}${adults || children ? ` · ${adults} adult${adults !== 1 ? "s" : ""}${children ? `, ${children} child${children !== 1 ? "ren" : ""}` : ""}` : ""}`} />
+              <Row label="Check-in" value={fmtDate(checkIn)} />
+              <Row label="Check-out" value={fmtDate(checkOut)} />
+              <Row label="Nights" value={String(nights)} />
+              {selectedMeal && <Row label="Meal plan" value={selectedMeal.name} />}
+              <Row label="Total" value={`₹${total.toLocaleString()}`} accent />
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-[#C8A86B]/20 bg-[#C8A86B]/5 p-6">
             <h2 className="text-[11px] uppercase tracking-[0.35em] text-[#C8A86B] mb-4">Bank Transfer Details</h2>
             <div className="space-y-3 text-sm">
               <Row label="Bank" value={bankDetails?.bankName} />
