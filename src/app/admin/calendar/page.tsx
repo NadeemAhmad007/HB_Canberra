@@ -23,7 +23,7 @@ export default function CalendarPage() {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const DAYS = daysInMonth;
 
-  useEffect(() => {
+  const loadData = () => {
     Promise.all([
       fetch("/api/admin?resource=rooms", { headers: h() }).then((r) => r.json()),
       fetch("/api/admin?resource=bookings", { headers: h() }).then((r) => r.json()),
@@ -33,6 +33,13 @@ export default function CalendarPage() {
       setBookings(Array.isArray(b) ? b : []);
       setBlockedDates(Array.isArray(bl) ? bl : []);
     }).catch(() => {}).finally(() => setLoading(false));
+  };
+
+  useEffect(() => { loadData(); }, []);
+
+  useEffect(() => {
+    const id = setInterval(loadData, 30000);
+    return () => clearInterval(id);
   }, []);
 
   if (loading) return <Skeleton className="h-96 w-full" />;

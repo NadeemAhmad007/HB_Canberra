@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { DataTable, type Column } from "@/components/admin/DataTable";
-import { Badge } from "@/components/admin/Badge";
+import { Badge, paymentStatusColors } from "@/components/admin/Badge";
 import { Skeleton } from "@/components/admin/Skeleton";
 import { EmptyState } from "@/components/admin/Skeleton";
 import { Modal } from "@/components/admin/Dialogs";
 import { useToast } from "@/components/admin/Toast";
-import { CheckSquare, Square } from "lucide-react";
+import { CheckSquare, Square, DollarSign } from "lucide-react";
 
 const token = () => sessionStorage.getItem("admin_token") || "";
 const h = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token()}` });
@@ -16,6 +16,7 @@ interface BookingRow {
   id: string; booking_ref: string; guest_name: string; phone: string; email: string;
   room_name: string; check_in: string; check_out: string; adults: number; children: number;
   units: number; amount: number; status: string; created_at: string; notes?: string;
+  payment_status?: string; payment_gateway?: string; payment_id?: string;
 }
 
 export default function BookingsPage() {
@@ -36,6 +37,11 @@ export default function BookingsPage() {
 
   useEffect(() => { fetchData(); }, []);
 
+  useEffect(() => {
+    const id = setInterval(fetchData, 30000);
+    return () => clearInterval(id);
+  }, []);
+
   const toggleSelect = (ref: string) => {
     setSelectedRefs((prev) => {
       const next = new Set(prev);
@@ -50,17 +56,43 @@ export default function BookingsPage() {
   };
 
   const updateStatus = async (ref: string, status: string) => {
-    await fetch("/api/admin", { method: "PUT", headers: h(), body: JSON.stringify({ resource: "booking-status", data: { bookingRef: ref, status } }) });
-    toast({ title: "Status updated", message: `Booking ${ref} set to ${status}`, type: "success" });
+    try {
+      const res = await fetch("/api/admin", { method: "PUT", headers: h(), body: JSON.stringify({ resource: "booking-status", data: { bookingRef: ref, status } }) });
+      if (!res.ok) throw new Error(await res.text());
+      toast({ title: "Status updated", message: `Booking ${ref} set to ${status}`, type: "success" });
+    } catch {
+      toast({ title: "Update failed", message: `Could not update ${ref}`, type: "error" });
+    }
     fetchData();
   };
 
   const bulkUpdate = async (status: string) => {
     if (selectedRefs.size === 0) { toast({ title: "No bookings selected", type: "warning" }); return; }
     const refs = Array.from(selectedRefs);
-    await fetch("/api/admin", { method: "PUT", headers: h(), body: JSON.stringify({ resource: "bulk-booking-status", data: { refs, status } }) });
-    toast({ title: "Bulk update", message: `${refs.length} bookings → ${status}`, type: "success" });
+    try {
+      const res = await fetch("/api/admin", { method: "PUT", headers: h(), body: JSON.stringify({ resource: "bulk-booking-status", data: { refs, status } }) });
+      if (!res.ok) throw new Error(await res.text());
+      toast({ title: "Bulk update", message: `${refs.length} bookings → ${status}`, type: "success" });
+    } catch {
+      toast({ title: "Bulk update failed", message: `Could not update ${refs.length} bookings`, type: "error" });
+    }
     fetchData();
+  };
+
+  const markAsPaid = async (ref: string) => {
+    try {
+      const res = await fetch("/api/admin", { method: "PUT", headers: h(), body: JSON.stringify({ resource: "mark-paid", data: { bookingRef: ref } }) });
+      if (!res.ok) throw new Error(await res.text());
+      toast({ title: "Marked as paid", message: ref, type: "success" });
+    } catch {
+      toast({ title: "Failed", message: "Could not mark as paid", type: "error" });
+    }
+    fetchData();
+  };
+
+  const gatewayIcon = (g?: string) => {
+    if (g === "bank") return "🏦";
+    return "";
   };
 
   const columns: Column<BookingRow>[] = [
@@ -88,6 +120,15 @@ export default function BookingsPage() {
       key: "amount", label: "Amount", render: (r) => `₹${r.amount?.toLocaleString()}`,
     },
     {
+      key: "payment_status", label: "Payment", render: (r) => (
+        <div className="flex items-center gap-1.5">
+          <span className={`inline-block rounded-full border px-2.5 py-0.5 text-[9px] uppercase tracking-wider font-medium ${paymentStatusColors[r.payment_status || ""] || "bg-white/10 text-white/60 border-white/10"}`}>
+            {gatewayIcon(r.payment_gateway)}{r.payment_status || "pending"}
+          </span>
+        </div>
+      ),
+    },
+    {
       key: "status", label: "Status", render: (r) => (
         <Badge status={r.status} />
       ),
@@ -95,6 +136,9 @@ export default function BookingsPage() {
     {
       key: "actions", label: "", sortable: false, render: (r) => (
         <div className="flex gap-2">
+          {(!r.payment_status || r.payment_status === "pending") && (
+            <button onClick={(e) => { e.stopPropagation(); markAsPaid(r.booking_ref); }} className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[10px] uppercase tracking-wider text-emerald-300 hover:bg-emerald-500/20"><DollarSign className="h-3 w-3 inline" /> Pay</button>
+          )}
           <select
             value=""
             onChange={(e) => { if (e.target.value) updateStatus(r.booking_ref, e.target.value); }}
@@ -155,6 +199,18 @@ export default function BookingsPage() {
               <div><span className="text-[10px] uppercase tracking-wider text-white/40">Email</span><p className="mt-1">{selected.email || "—"}</p></div>
               <div><span className="text-[10px] uppercase tracking-wider text-white/40">Phone</span><p className="mt-1">{selected.phone || "—"}</p></div>
             </div>
+            {(selected.payment_status || selected.payment_gateway) && (
+              <div className="border-t border-white/10 pt-4">
+                <span className="text-[10px] uppercase tracking-wider text-white/40">Payment</span>
+                <div className="mt-1 flex items-center gap-3">
+                  <span className={`inline-block rounded-full border px-3 py-1 text-[10px] uppercase tracking-wider font-medium ${paymentStatusColors[selected.payment_status || "pending"] || "bg-white/10 text-white/60 border-white/10"}`}>
+                    {selected.payment_status || "pending"}
+                  </span>
+                  <span className="text-[11px] text-white/50 capitalize">{selected.payment_gateway || "—"}</span>
+                  {selected.payment_id && <span className="text-[10px] font-mono text-white/30">{selected.payment_id.slice(0, 20)}...</span>}
+                </div>
+              </div>
+            )}
             <div className="border-t border-white/10 pt-5">
               <div className="grid grid-cols-2 gap-4">
                 <div><span className="text-[10px] uppercase tracking-wider text-white/40">Room</span><p className="mt-1">{selected.room_name} ×{selected.units}</p></div>

@@ -28,9 +28,14 @@ export default function CheckinPage() {
 
   useEffect(() => { fetchData(); }, []);
 
+  useEffect(() => {
+    const id = setInterval(fetchData, 30000);
+    return () => clearInterval(id);
+  }, []);
+
   const today = new Date().toISOString().slice(0, 10);
 
-  const arrivals = data.filter((b: any) => b.check_in === today && b.status === "pending" || b.status === "confirmed");
+  const arrivals = data.filter((b: any) => b.check_in === today && (b.status === "pending" || b.status === "confirmed"));
   const inHouse = data.filter((b: any) => b.status === "checked-in");
   const departures = data.filter((b: any) => b.check_out === today && b.status === "checked-in");
 

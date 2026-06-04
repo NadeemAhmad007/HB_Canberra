@@ -48,6 +48,11 @@ export default function InventoryPage() {
 
   useEffect(() => { fetchData(); }, []);
 
+  useEffect(() => {
+    const id = setInterval(fetchData, 30000);
+    return () => clearInterval(id);
+  }, []);
+
   const safeBookings = Array.isArray(bookings) ? bookings : [];
   const safeBlocked = Array.isArray(blockedDates) ? blockedDates : [];
 

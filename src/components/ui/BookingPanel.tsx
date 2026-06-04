@@ -5,7 +5,7 @@ import { useStore } from "@/store/useStore";
 import { useState, useMemo, useEffect } from "react";
 import { formatPrice } from "@/lib/math";
 
-const GST_RATE = 0.12;
+
 
 export function BookingPanel() {
   const show = useStore((s) => s.showBooking);
@@ -17,6 +17,10 @@ export function BookingPanel() {
 
   const pmsRooms = useMemo(() => pms?.rooms ?? [], [pms]);
   const pmsMeals = useMemo(() => pms?.mealPlans ?? [], [pms]);
+  const taxRate = useMemo(() => {
+    const raw = pms?.settings?.tax_rate || pms?.property?.GST || "12";
+    return Number(raw) / 100;
+  }, [pms]);
 
   const [guestName, setGuestName] = useState("");
   const [phone, setPhone] = useState("");
@@ -60,7 +64,7 @@ export function BookingPanel() {
   const roomTotal = roomPrice * units * nights;
   const mealTotal = (mealPrice * adults + Math.round(mealPrice * 0.5) * children) * units * nights;
   const subtotal = roomTotal + mealTotal;
-  const taxes = Math.round(subtotal * GST_RATE);
+  const taxes = Math.round(subtotal * taxRate);
   const total = subtotal + taxes;
   const maxUnits = selectedRoom?.availableUnits ?? selectedRoom?.units ?? 1;
 

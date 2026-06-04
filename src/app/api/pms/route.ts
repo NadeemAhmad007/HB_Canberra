@@ -84,10 +84,11 @@ export async function GET(request: Request) {
   }
 
   const today = new Date().toISOString().slice(0, 10);
+  const rateDate = checkIn || today;
   const roomsWithPrices = await Promise.all(activeRooms.map(async (r: any) => {
     let multiplier = 1;
     for (const s of activeSeasons) {
-      if (today >= s.start_date && today <= s.end_date) {
+      if (rateDate >= s.start_date && rateDate <= s.end_date) {
         multiplier = Number(s.multiplier);
         break;
       }

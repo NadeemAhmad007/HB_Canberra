@@ -5,8 +5,6 @@ import { useStore } from "@/store/useStore";
 import { formatPrice } from "@/lib/math";
 import Link from "next/link";
 
-const GST_RATE = 0.12;
-
 export default function BookingPage() {
   const pms = useStore((s) => s.pms);
   const pmsLoading = useStore((s) => s.pmsLoading);
@@ -15,6 +13,10 @@ export default function BookingPage() {
   const pmsRooms = useMemo(() => pms?.rooms ?? [], [pms]);
   const pmsMeals = useMemo(() => pms?.mealPlans ?? [], [pms]);
   const settings = useMemo(() => pms?.settings ?? {}, [pms]);
+  const taxRate = useMemo(() => {
+    const raw = settings.tax_rate || pms?.property?.GST || "12";
+    return Number(raw) / 100;
+  }, [settings, pms]);
 
   const [guestName, setGuestName] = useState("");
   const [phone, setPhone] = useState("");
@@ -30,8 +32,14 @@ export default function BookingPage() {
   const [tcAccepted, setTcAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [bookingRef, setBookingRef] = useState("");
+  const [bankDetails, setBankDetails] = useState<any>(null);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [availData, setAvailData] = useState<Record<string, { blocked: string[]; bookings: any[]; totalUnits: number }>>({});
+  const today = new Date();
+  const [calMonth, setCalMonth] = useState(today.getMonth());
+  const [calYear, setCalYear] = useState(today.getFullYear());
 
   const validEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
   const validPhone = (v: string) => /^[\d\s\-\+\(\)]{7,20}$/.test(v) && /\d{7,}/.test(v.replace(/\D/g, ""));
@@ -56,19 +64,15 @@ export default function BookingPage() {
       return next;
     });
   };
-  const [availData, setAvailData] = useState<Record<string, { blocked: string[]; bookings: any[]; totalUnits: number }>>({});
 
   useEffect(() => { fetchPms(); }, [fetchPms]);
-
   useEffect(() => {
     if (!roomId && pmsRooms.length > 0) setRoomId(String(pmsRooms[0].id));
   }, [pmsRooms, roomId]);
-
   useEffect(() => {
     if (checkIn && checkOut) fetchPms(checkIn, checkOut);
   }, [checkIn, checkOut, fetchPms]);
 
-  // Fetch availability calendar data
   const fetchAvailability = useCallback(async (roomIdNum: number, month: number, year: number) => {
     try {
       const res = await fetch(`/api/availability?roomId=${roomIdNum}&month=${month}&year=${year}`);
@@ -93,23 +97,17 @@ export default function BookingPage() {
   const roomTotal = roomPrice * units * nights;
   const mealTotal = (mealPrice * adults + Math.round(mealPrice * 0.5) * children) * units * nights;
   const subtotal = roomTotal + mealTotal;
-  const taxes = Math.round(subtotal * GST_RATE);
+  const taxes = Math.round(subtotal * taxRate);
   const total = subtotal + taxes;
   const maxUnits = selectedRoom?.availableUnits ?? selectedRoom?.units ?? 1;
   const minDate = new Date().toISOString().slice(0, 10);
   const cancellationPolicy = settings?.cancellation_policy || "Free cancellation up to 7 days before check-in. 50% charge within 7 days. No refund after check-in.";
 
-  // Availability calendar for selected room
-  const today = new Date();
-  const [calMonth, setCalMonth] = useState(today.getMonth());
-  const [calYear, setCalYear] = useState(today.getFullYear());
   const calKey = selectedRoom ? `${selectedRoom.id}-${calYear}-${calMonth + 1}` : "";
   const calData = calKey ? availData[calKey] : null;
 
   useEffect(() => {
-    if (selectedRoom) {
-      fetchAvailability(selectedRoom.id, calMonth + 1, calYear);
-    }
+    if (selectedRoom) fetchAvailability(selectedRoom.id, calMonth + 1, calYear);
   }, [selectedRoom, calMonth, calYear, fetchAvailability]);
 
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
@@ -141,16 +139,25 @@ export default function BookingPage() {
     }
     setSubmitting(true);
     setError("");
+
     try {
-      const res = await fetch("/api/pms", {
+      const res = await fetch("/api/payments/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ guestName, phone, email, roomId, mealCode, adults, children, units, checkIn, checkOut, nights, amount: total, notes, tcAccepted }),
+        body: JSON.stringify({
+          guestName, phone, email, roomId, mealCode, adults, children, units,
+          checkIn, checkOut, nights, amount: total, currency: "INR", notes, tcAccepted,
+        }),
       });
+
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || "Submission failed");
       }
+
+      const data = await res.json();
+      setBookingRef(data.ref);
+      setBankDetails(data.bank);
       setSubmitted(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -161,14 +168,36 @@ export default function BookingPage() {
 
   if (submitted) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#0A0D0C] text-white p-8">
-        <div className="max-w-md text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-emerald-300/50 text-emerald-200">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-8 w-8"><path d="M5 13l4 4L19 7" /></svg>
+      <main className="min-h-screen bg-[#0A0D0C] text-white">
+        <div className="mx-auto max-w-lg px-6 pt-20 pb-16">
+          <div className="text-center">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-[#C8A86B]/50 text-[#C8A86B]">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-8 w-8"><path d="M5 13l4 4L19 7" /></svg>
+            </div>
+            <h1 className="mt-6 text-3xl font-light" style={{ fontFamily: "var(--font-display)" }}>Booking Received</h1>
+            <p className="mt-3 text-white/70">We&apos;ve saved your request. To confirm your stay, please transfer the amount to our bank account.</p>
+            <p className="mt-2 font-mono text-[#C8A86B] text-sm">{bookingRef}</p>
           </div>
-          <h1 className="mt-6 text-3xl font-light" style={{ fontFamily: "var(--font-display)" }}>Request received</h1>
-          <p className="mt-3 text-white/70">We&apos;ll confirm your stay at Houseboat Canberra within the hour. A confirmation email is on its way.</p>
-          <Link href="/" className="mt-8 inline-block rounded-full bg-white px-8 py-3 text-[11px] uppercase tracking-[0.4em] text-black" style={{ fontFamily: "var(--font-display)" }}>Back to home</Link>
+
+          <div className="mt-10 rounded-2xl border border-[#C8A86B]/20 bg-[#C8A86B]/5 p-6">
+            <h2 className="text-[11px] uppercase tracking-[0.35em] text-[#C8A86B] mb-4">Bank Transfer Details</h2>
+            <div className="space-y-3 text-sm">
+              <Row label="Bank" value={bankDetails?.bankName} />
+              <Row label="Account Name" value={bankDetails?.accountName} />
+              <Row label="Account No" value={bankDetails?.accountNumber} />
+              <Row label="IFSC" value={bankDetails?.ifsc} />
+              {bankDetails?.upiId && <Row label="UPI ID" value={bankDetails.upiId} />}
+              <Row label="Amount" value={`₹${total.toLocaleString()}`} accent />
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-xl border border-white/10 bg-white/[0.02] p-5 text-[12px] text-white/50 leading-relaxed">
+            Once we receive the transfer, we&apos;ll confirm your booking and send a confirmation email. This usually takes 2–4 hours during business hours (<strong className="text-white/70">9 AM – 8 PM IST</strong>).
+          </div>
+
+          <div className="mt-8 text-center">
+            <Link href="/" className="inline-block rounded-full bg-white px-8 py-3 text-[11px] uppercase tracking-[0.4em] text-black" style={{ fontFamily: "var(--font-display)" }}>Back to home</Link>
+          </div>
         </div>
       </main>
     );
@@ -178,9 +207,7 @@ export default function BookingPage() {
     <main className="min-h-screen bg-[#0A0D0C] text-white">
       <header className="fixed left-0 right-0 top-0 z-40 border-b border-white/10 bg-[#0A0D0C]/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <Link href="/" className="text-xs uppercase tracking-[0.4em] text-white/70 hover:text-white" style={{ fontFamily: "var(--font-display)" }}>
-            Houseboat Canberra
-          </Link>
+          <Link href="/" className="text-xs uppercase tracking-[0.4em] text-white/70 hover:text-white" style={{ fontFamily: "var(--font-display)" }}>Houseboat Canberra</Link>
           <span className="text-[10px] uppercase tracking-[0.45em] text-[#C8A86B]" style={{ fontFamily: "var(--font-display)" }}>Reserve</span>
         </div>
       </header>
@@ -188,7 +215,7 @@ export default function BookingPage() {
       <div className="mx-auto max-w-7xl px-6 pt-28 pb-16">
         <div className="mb-12">
           <h1 className="text-4xl font-light md:text-5xl" style={{ fontFamily: "var(--font-display)" }}>Book your stay</h1>
-          <p className="mt-3 text-white/60 max-w-xl">Direct reservation on Dal Lake. Real-time availability, no booking fees.</p>
+          <p className="mt-3 text-white/60 max-w-xl">Direct reservation on Dal Lake. Pay by bank transfer to confirm.</p>
         </div>
 
         <div className="grid gap-12 lg:grid-cols-[1.3fr_1fr]">
@@ -206,26 +233,19 @@ export default function BookingPage() {
                         <p className="text-[11px] text-white/30 mt-1">{selectedRoom.name} · {calData ? `${calData.totalUnits} unit${calData.totalUnits > 1 ? 's' : ''} total` : "Loading..."}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); } else setCalMonth(calMonth - 1); }}
-                          className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 text-white/50 hover:bg-white/10 hover:text-white transition"
-                        >
+                        <button type="button" onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); } else setCalMonth(calMonth - 1); }}
+                          className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 text-white/50 hover:bg-white/10 hover:text-white transition">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><path d="M15 18l-6-6 6-6"/></svg>
                         </button>
                         <span className="text-sm text-white/80 min-w-[100px] text-center font-light" style={{ fontFamily: "var(--font-display)" }}>
                           {["January","February","March","April","May","June","July","August","September","October","November","December"][calMonth]} {calYear}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1); } else setCalMonth(calMonth + 1); }}
-                          className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 text-white/50 hover:bg-white/10 hover:text-white transition"
-                        >
+                        <button type="button" onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1); } else setCalMonth(calMonth + 1); }}
+                          className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 text-white/50 hover:bg-white/10 hover:text-white transition">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><path d="M9 18l6-6-6-6"/></svg>
                         </button>
                       </div>
                     </div>
-
                     <div className="px-4 pb-1">
                       <div className="grid grid-cols-7 gap-px">
                         {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => (
@@ -241,87 +261,43 @@ export default function BookingPage() {
                           const isRange = checkIn && checkOut && ds > checkIn && ds < checkOut;
                           const clickable = info.status !== "past" && info.status !== "full";
 
-                          let bg = "";
-                          let txt = "text-white/40";
-                          let badge = "";
-                          let border = "";
+                          let bg = ""; let txt = "text-white/40"; let badge = ""; let border = "";
+                          if (info.status === "past") { bg = "bg-white/[0.02]"; txt = "text-white/15"; }
+                          else if (info.status === "full") { bg = "bg-rose-500/8"; txt = "text-rose-400/40"; badge = "Full"; }
+                          else if (info.status === "limited") { bg = "bg-amber-400/8"; txt = "text-amber-300/80"; badge = `${info.available}`; }
+                          else { bg = "bg-emerald-400/6"; txt = "text-emerald-300/80"; badge = `${info.available}`; }
 
-                          if (info.status === "past") {
-                            bg = "bg-white/[0.02]";
-                            txt = "text-white/15";
-                          } else if (info.status === "full") {
-                            bg = "bg-rose-500/8";
-                            txt = "text-rose-400/40";
-                            badge = "Full";
-                          } else if (info.status === "limited") {
-                            bg = "bg-amber-400/8";
-                            txt = "text-amber-300/80";
-                            badge = `${info.available}`;
-                          } else {
-                            bg = "bg-emerald-400/6";
-                            txt = "text-emerald-300/80";
-                            badge = `${info.available}`;
-                          }
-
-                          if (isSelected) {
-                            border = "ring-2 ring-[#C8A86B] bg-[#C8A86B]/15";
-                            txt = "text-white";
-                            badge = "";
-                          } else if (isCheckout) {
-                            border = "ring-2 ring-white/30 bg-white/10";
-                          } else if (isRange) {
-                            bg = "bg-[#C8A86B]/5";
-                            txt = "text-white/70";
-                          }
+                          if (isSelected) { border = "ring-2 ring-[#C8A86B] bg-[#C8A86B]/15"; txt = "text-white"; badge = ""; }
+                          else if (isCheckout) { border = "ring-2 ring-white/30 bg-white/10"; }
+                          else if (isRange) { bg = "bg-[#C8A86B]/5"; txt = "text-white/70"; }
 
                           return (
-                            <div
-                              key={d}
+                            <div key={d}
                               className={`relative flex flex-col items-center justify-center py-2.5 rounded-lg text-[11px] transition-all duration-150 ${bg} ${txt} ${border} ${clickable ? "cursor-pointer hover:scale-105 hover:z-10" : "cursor-default"}`}
                               onClick={() => {
                                 if (!clickable) return;
-                                if (!checkIn || (checkIn && checkOut)) {
-                                  setCheckIn(ds); setCheckOut("");
-                                } else if (ds > checkIn) {
-                                  setCheckOut(ds);
-                                } else {
-                                  setCheckIn(ds); setCheckOut("");
-                                }
-                              }}
-                            >
+                                if (!checkIn || (checkIn && checkOut)) { setCheckIn(ds); setCheckOut(""); }
+                                else if (ds > checkIn) { setCheckOut(ds); }
+                                else { setCheckIn(ds); setCheckOut(""); }
+                              }}>
                               <span className="font-medium leading-none">{d}</span>
                               {badge && (
-                                <span className={`mt-1 text-[8px] leading-none font-medium uppercase tracking-wider ${
-                                  info.status === "full" ? "text-rose-400/50" : info.status === "limited" ? "text-amber-400/70" : "text-emerald-400/60"
-                                }`}>
+                                <span className={`mt-1 text-[8px] leading-none font-medium uppercase tracking-wider ${info.status === "full" ? "text-rose-400/50" : info.status === "limited" ? "text-amber-400/70" : "text-emerald-400/60"}`}>
                                   {info.status === "full" ? "Full" : `${badge} unit${badge !== "1" ? "s" : ""}`}
                                 </span>
                               )}
-                              {isSelected && (
-                                <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#C8A86B] text-[7px] text-black font-bold">✓</span>
-                              )}
+                              {isSelected && <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#C8A86B] text-[7px] text-black font-bold">✓</span>}
                             </div>
                           );
                         })}
                       </div>
                     </div>
-
                     <div className="flex flex-wrap items-center gap-4 px-5 pb-5 pt-3 border-t border-white/5 mt-2">
-                      <span className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-white/35">
-                        <span className="inline-block h-2 w-2 rounded-sm bg-emerald-400/50" /> Available
-                      </span>
-                      <span className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-white/35">
-                        <span className="inline-block h-2 w-2 rounded-sm bg-amber-400/50" /> Limited
-                      </span>
-                      <span className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-white/35">
-                        <span className="inline-block h-2 w-2 rounded-sm bg-rose-400/50" /> Full
-                      </span>
-                      <span className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-white/35">
-                        <span className="inline-block h-2 w-2 rounded-sm bg-white/10 border border-white/20" /> Past
-                      </span>
-                      <span className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-white/35 ml-auto">
-                        <span className="inline-block h-2 w-2 rounded-sm bg-[#C8A86B]" /> Selected
-                      </span>
+                      <span className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-white/35"><span className="inline-block h-2 w-2 rounded-sm bg-emerald-400/50" /> Available</span>
+                      <span className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-white/35"><span className="inline-block h-2 w-2 rounded-sm bg-amber-400/50" /> Limited</span>
+                      <span className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-white/35"><span className="inline-block h-2 w-2 rounded-sm bg-rose-400/50" /> Full</span>
+                      <span className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-white/35"><span className="inline-block h-2 w-2 rounded-sm bg-white/10 border border-white/20" /> Past</span>
+                      <span className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-white/35 ml-auto"><span className="inline-block h-2 w-2 rounded-sm bg-[#C8A86B]" /> Selected</span>
                     </div>
                   </div>
                 )}
@@ -329,52 +305,26 @@ export default function BookingPage() {
                 {/* Guest details */}
                 <div className="grid gap-5 sm:grid-cols-3">
                   <Field label="Your name" error={fieldErrors.guestName}>
-                    <input
-                      type="text"
-                      value={guestName}
-                      onChange={(e) => { setGuestName(e.target.value); clearErr("guestName"); }}
-                      placeholder="Full name"
-                      className={`booking-input ${fieldErrors.guestName ? "border-rose-400/50" : ""}`}
-                    />
+                    <input type="text" value={guestName} onChange={(e) => { setGuestName(e.target.value); clearErr("guestName"); }} placeholder="Full name" className={`booking-input ${fieldErrors.guestName ? "border-rose-400/50" : ""}`} />
                   </Field>
                   <Field label="Phone" error={fieldErrors.phone}>
-                    <input
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => { setPhone(e.target.value); clearErr("phone"); }}
-                      placeholder="+91 98765 43210"
-                      className={`booking-input ${fieldErrors.phone ? "border-rose-400/50" : ""}`}
-                    />
+                    <input type="tel" value={phone} onChange={(e) => { setPhone(e.target.value); clearErr("phone"); }} placeholder="+91 98765 43210" className={`booking-input ${fieldErrors.phone ? "border-rose-400/50" : ""}`} />
                   </Field>
                   <Field label="Email" error={fieldErrors.email}>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => { setEmail(e.target.value); clearErr("email"); }}
-                      placeholder="you@example.com"
-                      className={`booking-input ${fieldErrors.email ? "border-rose-400/50" : ""}`}
-                    />
+                    <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); clearErr("email"); }} placeholder="you@example.com" className={`booking-input ${fieldErrors.email ? "border-rose-400/50" : ""}`} />
                   </Field>
                 </div>
 
                 {/* Dates */}
                 <div className="grid gap-5 sm:grid-cols-2">
-                  <Field label="Check-in">
-                    <input type="date" value={checkIn} min={minDate} onChange={(e) => setCheckIn(e.target.value)} className="booking-input" />
-                  </Field>
-                  <Field label="Check-out">
-                    <input type="date" value={checkOut} min={checkIn || minDate} onChange={(e) => setCheckOut(e.target.value)} className="booking-input" />
-                  </Field>
+                  <Field label="Check-in"><input type="date" value={checkIn} min={minDate} onChange={(e) => setCheckIn(e.target.value)} className="booking-input" /></Field>
+                  <Field label="Check-out"><input type="date" value={checkOut} min={checkIn || minDate} onChange={(e) => setCheckOut(e.target.value)} className="booking-input" /></Field>
                 </div>
 
                 {/* Guests + Units */}
                 <div className="grid gap-5 sm:grid-cols-3">
-                  <Field label="Adults">
-                    <Stepper value={adults} min={1} max={selectedRoom?.maxAdults ?? 4} onChange={setAdults} />
-                  </Field>
-                  <Field label="Children">
-                    <Stepper value={children} min={0} max={selectedRoom?.maxChildren ?? 2} onChange={setChildren} />
-                  </Field>
+                  <Field label="Adults"><Stepper value={adults} min={1} max={selectedRoom?.maxAdults ?? 4} onChange={setAdults} /></Field>
+                  <Field label="Children"><Stepper value={children} min={0} max={selectedRoom?.maxChildren ?? 2} onChange={setChildren} /></Field>
                   <Field label="Units">
                     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
                       <div className="flex items-center justify-between">
@@ -386,17 +336,9 @@ export default function BookingPage() {
                       </div>
                       {maxUnits > 1 && (
                         <div className="mt-3 flex gap-1">
-                          {Array.from({ length: maxUnits }).map((_, i) => {
-                            const filled = i < units;
-                            return (
-                              <div
-                                key={i}
-                                className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
-                                  filled ? "bg-[#C8A86B]" : "bg-white/10"
-                                }`}
-                              />
-                            );
-                          })}
+                          {Array.from({ length: maxUnits }).map((_, i) => (
+                            <div key={i} className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${i < units ? "bg-[#C8A86B]" : "bg-white/10"}`} />
+                          ))}
                         </div>
                       )}
                       <p className="mt-2 text-[9px] text-white/30 uppercase tracking-wider">{maxUnits - units} unit{maxUnits - units !== 1 ? "s" : ""} remaining</p>
@@ -409,7 +351,6 @@ export default function BookingPage() {
                   <select value={roomId} onChange={(e) => { setRoomId(e.target.value); setUnits(1); }} className="booking-input">
                     {pmsRooms.map((r) => {
                       const avail = r.availableUnits ?? r.units;
-                      const pct = avail / r.units;
                       return (
                         <option key={r.id} value={r.id} className="bg-[#0A0D0C]" disabled={avail === 0}>
                           {r.name} — {formatPrice(r.currentPrice, "INR")}/night {avail > 0 ? `(${avail}/${r.units} available)` : "(sold out)"}
@@ -419,10 +360,7 @@ export default function BookingPage() {
                   </select>
                   {selectedRoom && (
                     <div className="mt-2 flex items-center gap-2 text-[10px] text-white/40">
-                      <span className={`inline-block h-1.5 w-1.5 rounded-full ${
-                        (selectedRoom.availableUnits ?? selectedRoom.units) === 0 ? "bg-rose-400" :
-                        (selectedRoom.availableUnits ?? selectedRoom.units) <= (selectedRoom.units / 2) ? "bg-amber-400" : "bg-emerald-400"
-                      }`} />
+                      <span className={`inline-block h-1.5 w-1.5 rounded-full ${(selectedRoom.availableUnits ?? selectedRoom.units) === 0 ? "bg-rose-400" : (selectedRoom.availableUnits ?? selectedRoom.units) <= (selectedRoom.units / 2) ? "bg-amber-400" : "bg-emerald-400"}`} />
                       {(selectedRoom.availableUnits ?? selectedRoom.units)} of {selectedRoom.units} units available
                     </div>
                   )}
@@ -433,9 +371,7 @@ export default function BookingPage() {
                   <select value={mealCode} onChange={(e) => setMealCode(e.target.value)} className="booking-input">
                     <option value="" className="bg-[#0A0D0C]">No meal plan</option>
                     {pmsMeals.map((m) => (
-                      <option key={m.code} value={m.code} className="bg-[#0A0D0C]">
-                        {m.name} {m.price > 0 ? `+ ${formatPrice(m.price, "INR")}` : ""}
-                      </option>
+                      <option key={m.code} value={m.code} className="bg-[#0A0D0C]">{m.name} {m.price > 0 ? `+ ${formatPrice(m.price, "INR")}` : ""}</option>
                     ))}
                   </select>
                 </Field>
@@ -459,15 +395,9 @@ export default function BookingPage() {
                 {/* T&C */}
                 <div>
                   <label className={`flex items-start gap-3 cursor-pointer ${fieldErrors.tcAccepted ? "opacity-100" : ""}`}>
-                    <input
-                      type="checkbox"
-                      checked={tcAccepted}
-                      onChange={(e) => { setTcAccepted(e.target.checked); clearErr("tcAccepted"); }}
-                      className={`mt-0.5 h-4 w-4 rounded border-white/20 bg-white/[0.03] accent-[#C8A86B] ${fieldErrors.tcAccepted ? "ring-1 ring-rose-400/50" : ""}`}
-                    />
-                    <span className="text-[12px] text-white/60 leading-relaxed">
-                      I accept the <span className="text-[#C8A86B] underline">terms & conditions</span> and cancellation policy.
-                    </span>
+                    <input type="checkbox" checked={tcAccepted} onChange={(e) => { setTcAccepted(e.target.checked); clearErr("tcAccepted"); }}
+                      className={`mt-0.5 h-4 w-4 rounded border-white/20 bg-white/[0.03] accent-[#C8A86B] ${fieldErrors.tcAccepted ? "ring-1 ring-rose-400/50" : ""}`} />
+                    <span className="text-[12px] text-white/60 leading-relaxed">I accept the <span className="text-[#C8A86B] underline">terms & conditions</span> and cancellation policy.</span>
                   </label>
                   {fieldErrors.tcAccepted && (
                     <p className="mt-1 ml-7 text-[10px] text-rose-300/90 flex items-center gap-1">
@@ -477,16 +407,17 @@ export default function BookingPage() {
                   )}
                 </div>
 
-                {error && <p className="text-sm text-rose-300">{error}</p>}
+                {error && <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{error}</div>}
 
-                <button
-                  type="submit"
-                  disabled={submitting || Object.keys(fieldErrors).length > 0}
-                  className="group relative w-full overflow-hidden rounded-full bg-white py-4 text-[11px] uppercase tracking-[0.4em] text-black disabled:opacity-50" style={{ fontFamily: "var(--font-display)" }}
-                >
-                  <span className="relative z-10 transition-colors group-hover:text-white">{submitting ? "Submitting..." : "Confirm Reservation"}</span>
+                <button type="submit" disabled={submitting || Object.keys(fieldErrors).length > 0}
+                  className="group relative w-full overflow-hidden rounded-full bg-white py-4 text-[11px] uppercase tracking-[0.4em] text-black disabled:opacity-50" style={{ fontFamily: "var(--font-display)" }}>
+                  <span className="relative z-10 transition-colors group-hover:text-white">
+                    {submitting ? "Submitting..." : `Book Now — ₹${total.toLocaleString()}`}
+                  </span>
                   <span className="absolute inset-0 -translate-x-full bg-[#C8A86B] transition-transform duration-500 group-hover:translate-x-0" />
                 </button>
+
+                <p className="text-center text-[10px] text-white/30">Pay by bank transfer. We&apos;ll confirm once funds arrive.</p>
               </form>
             )}
           </div>
@@ -513,7 +444,7 @@ export default function BookingPage() {
                 <Line label="Total" value={formatPrice(total, "INR")} large />
               </div>
             </div>
-            <div className="mt-8 rounded-xl border border-white/10 bg-white/[0.02] p-5 text-[11px] text-white/55">
+            <div className="mt-6 rounded-xl border border-white/10 bg-white/[0.02] p-5 text-[11px] text-white/55">
               <div className="flex items-center gap-2 text-white/80">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-4 w-4"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7l3-7z" /></svg>
                 Direct perks
@@ -524,7 +455,6 @@ export default function BookingPage() {
                 <li>• Complimentary shikara at sunset</li>
               </ul>
             </div>
-            {/* Cancellation summary */}
             <div className="mt-4 rounded-xl border border-rose-500/10 bg-rose-500/[0.03] p-4 text-[10px] text-white/40">
               <div className="font-medium text-rose-300/80 uppercase tracking-wider mb-1">Cancel policy</div>
               {cancellationPolicy}
@@ -556,6 +486,15 @@ function Line({ label, value, muted, large }: { label: string; value: string; mu
     <div className="flex items-center justify-between">
       <span className={muted ? "text-white/45" : "text-white/80"}>{label}</span>
       <span className={large ? "text-2xl font-light text-white" : "text-white/85"} style={{ fontFamily: "var(--font-display)" }}>{value}</span>
+    </div>
+  );
+}
+
+function Row({ label, value, accent }: { label: string; value?: string; accent?: boolean }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-white/40 text-[11px] uppercase tracking-wider">{label}</span>
+      <span className={`text-sm font-mono ${accent ? "text-[#C8A86B]" : "text-white/80"}`}>{value || "—"}</span>
     </div>
   );
 }

@@ -165,8 +165,7 @@ export async function PUT(request: Request) {
       }
       case "booking-status": {
         const { bookingRef, status, stripePaymentIntent } = data;
-        const sql = (await import("@/lib/db")).updateBookingStatus;
-        await sql(bookingRef, status, stripePaymentIntent);
+        await updateBookingStatus(bookingRef, status, stripePaymentIntent);
         await addActivityLog("booking_status", "booking", bookingRef, `Status changed to ${status}`);
         return NextResponse.json({ ok: true });
       }
@@ -206,10 +205,17 @@ export async function PUT(request: Request) {
         await updateInvoiceStatus(data.id, data.status);
         return NextResponse.json({ ok: true });
       }
-      case "settings": {
+      case "mark-paid": {
+        const { bookingRef } = data;
         const sql = getSql();
+        await sql`UPDATE bookings SET payment_status = 'paid', payment_gateway = 'bank', status = 'confirmed', updated_at = now() WHERE booking_ref = ${bookingRef}`;
+        await addActivityLog("bank_transfer_confirmed", "booking", bookingRef, `Bank transfer confirmed by admin`);
+        return NextResponse.json({ ok: true });
+      }
+      case "settings": {
+        const sv = getSql();
         for (const [key, value] of Object.entries(data)) {
-          await sql`INSERT INTO settings (key, value, updated_at) VALUES (${key}, ${String(value)}, now()) ON CONFLICT (key) DO UPDATE SET value = ${String(value)}, updated_at = now()`;
+          await sv`INSERT INTO settings (key, value, updated_at) VALUES (${key}, ${String(value)}, now()) ON CONFLICT (key) DO UPDATE SET value = ${String(value)}, updated_at = now()`;
         }
         return NextResponse.json({ ok: true });
       }
