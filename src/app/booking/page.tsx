@@ -90,20 +90,20 @@ export default function BookingPage() {
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
   const firstDow = new Date(calYear, calMonth, 1).getDay();
 
-  const statusForDay = (d: number) => {
-    if (!calData || !selectedRoom) return "future";
+  const dayInfo = (d: number) => {
+    if (!calData || !selectedRoom) return { status: "future" as const, available: 0, total: 0, used: 0 };
     const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    if (dateStr < minDate) return "past";
-    // Count blocked units on this date
+    if (dateStr < minDate) return { status: "past" as const, available: 0, total: 0, used: 0 };
     const blockedOnDay = calData.blocked.filter((b: any) => b.date === dateStr);
     const blockedUnitCount = new Set(blockedOnDay.map((b: any) => b.unitIndex)).size;
     const totalBooked = calData.bookings
       .filter((b: any) => dateStr >= b.checkIn && dateStr < b.checkOut)
       .reduce((s: number, b: any) => s + b.units, 0);
     const used = totalBooked + blockedUnitCount;
-    if (used >= calData.totalUnits) return "full";
-    if (blockedUnitCount > 0) return "partial";
-    return "available";
+    const total = calData.totalUnits;
+    const available = Math.max(0, total - used);
+    const status = used === 0 ? "available" as const : available > 0 ? "limited" as const : "full" as const;
+    return { status, available, total, used, dateStr };
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -174,28 +174,87 @@ export default function BookingPage() {
               <form onSubmit={handleSubmit} className="space-y-8">
                 {/* Availability calendar */}
                 {selectedRoom && (
-                  <div className="rounded-2xl border border-white/10 p-5">
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="text-[10px] uppercase tracking-[0.35em] text-white/50">Availability</span>
-                      <div className="flex items-center gap-3 text-xs">
-                        <button type="button" onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); } else setCalMonth(calMonth - 1); }} className="text-white/40 hover:text-white">←</button>
-                        <span className="text-white/70 min-w-20 text-center">{["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][calMonth]} {calYear}</span>
-                        <button type="button" onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1); } else setCalMonth(calMonth + 1); }} className="text-white/40 hover:text-white">→</button>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
+                    <div className="flex items-center justify-between px-5 pt-5 pb-3">
+                      <div>
+                        <span className="text-[10px] uppercase tracking-[0.35em] text-white/50">Availability</span>
+                        <p className="text-[11px] text-white/30 mt-1">{selectedRoom.name} · {calData ? `${calData.totalUnits} unit${calData.totalUnits > 1 ? 's' : ''} total` : "Loading..."}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); } else setCalMonth(calMonth - 1); }}
+                          className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 text-white/50 hover:bg-white/10 hover:text-white transition"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><path d="M15 18l-6-6 6-6"/></svg>
+                        </button>
+                        <span className="text-sm text-white/80 min-w-[100px] text-center font-light" style={{ fontFamily: "var(--font-display)" }}>
+                          {["January","February","March","April","May","June","July","August","September","October","November","December"][calMonth]} {calYear}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1); } else setCalMonth(calMonth + 1); }}
+                          className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 text-white/50 hover:bg-white/10 hover:text-white transition"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><path d="M9 18l6-6-6-6"/></svg>
+                        </button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-7 gap-1 text-center">
-                      {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d => <div key={d} className="text-[9px] uppercase tracking-wider text-white/30 py-1">{d}</div>)}
-                      {Array.from({ length: firstDow }).map((_, i) => <div key={`e${i}`} />)}
-                      {Array.from({ length: daysInMonth }).map((_, i) => {
-                        const d = i + 1;
-                        const st = statusForDay(d);
-                        const isSelected = checkIn && `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}` === checkIn;
-                        const isRange = checkIn && checkOut && `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}` > checkIn && `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}` < checkOut;
-                        return (
-                          <div key={d} className={`py-1.5 text-[11px] rounded ${st === "past" ? "text-white/10" : st === "full" ? "text-rose-400/50 bg-rose-500/10 cursor-not-allowed" : st === "partial" ? "text-amber-300/70 bg-amber-500/10 hover:bg-white/5 cursor-pointer" : st === "available" ? "text-emerald-300/70 hover:bg-white/5 cursor-pointer" : "text-white/40"} ${isSelected ? "ring-1 ring-[#C8A86B] bg-[#C8A86B]/10" : ""} ${isRange ? "bg-white/[0.03]" : ""}`}
-                            onClick={() => {
-                              if (st === "available" || st === "partial" || st === "future") {
-                                const ds = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+
+                    <div className="px-4 pb-1">
+                      <div className="grid grid-cols-7 gap-px">
+                        {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => (
+                          <div key={d} className="text-[9px] uppercase tracking-[0.2em] text-white/25 py-2 text-center">{d}</div>
+                        ))}
+                        {Array.from({ length: firstDow }).map((_, i) => <div key={`e${i}`} />)}
+                        {Array.from({ length: daysInMonth }).map((_, i) => {
+                          const d = i + 1;
+                          const info = dayInfo(d);
+                          const ds = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+                          const isSelected = checkIn === ds;
+                          const isCheckout = checkOut === ds;
+                          const isRange = checkIn && checkOut && ds > checkIn && ds < checkOut;
+                          const clickable = info.status !== "past" && info.status !== "full";
+
+                          let bg = "";
+                          let txt = "text-white/40";
+                          let badge = "";
+                          let border = "";
+
+                          if (info.status === "past") {
+                            bg = "bg-white/[0.02]";
+                            txt = "text-white/15";
+                          } else if (info.status === "full") {
+                            bg = "bg-rose-500/8";
+                            txt = "text-rose-400/40";
+                            badge = "Full";
+                          } else if (info.status === "limited") {
+                            bg = "bg-amber-400/8";
+                            txt = "text-amber-300/80";
+                            badge = `${info.available}`;
+                          } else {
+                            bg = "bg-emerald-400/6";
+                            txt = "text-emerald-300/80";
+                            badge = `${info.available}`;
+                          }
+
+                          if (isSelected) {
+                            border = "ring-2 ring-[#C8A86B] bg-[#C8A86B]/15";
+                            txt = "text-white";
+                            badge = "";
+                          } else if (isCheckout) {
+                            border = "ring-2 ring-white/30 bg-white/10";
+                          } else if (isRange) {
+                            bg = "bg-[#C8A86B]/5";
+                            txt = "text-white/70";
+                          }
+
+                          return (
+                            <div
+                              key={d}
+                              className={`relative flex flex-col items-center justify-center py-2.5 rounded-lg text-[11px] transition-all duration-150 ${bg} ${txt} ${border} ${clickable ? "cursor-pointer hover:scale-105 hover:z-10" : "cursor-default"}`}
+                              onClick={() => {
+                                if (!clickable) return;
                                 if (!checkIn || (checkIn && checkOut)) {
                                   setCheckIn(ds); setCheckOut("");
                                 } else if (ds > checkIn) {
@@ -203,17 +262,41 @@ export default function BookingPage() {
                                 } else {
                                   setCheckIn(ds); setCheckOut("");
                                 }
-                              }
-                            }}
-                          >{d}</div>
-                        );
-                      })}
+                              }}
+                            >
+                              <span className="font-medium leading-none">{d}</span>
+                              {badge && (
+                                <span className={`mt-1 text-[8px] leading-none font-medium uppercase tracking-wider ${
+                                  info.status === "full" ? "text-rose-400/50" : info.status === "limited" ? "text-amber-400/70" : "text-emerald-400/60"
+                                }`}>
+                                  {info.status === "full" ? "Full" : `${badge} unit${badge !== "1" ? "s" : ""}`}
+                                </span>
+                              )}
+                              {isSelected && (
+                                <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#C8A86B] text-[7px] text-black font-bold">✓</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div className="flex gap-4 mt-4 text-[9px] uppercase tracking-wider text-white/40">
-                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-full bg-emerald-300/50" /> Available</span>
-                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-full bg-amber-400/50" /> Partial</span>
-                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-full bg-rose-400/50" /> Full / Blocked</span>
-                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 border border-white/20 rounded-full" /> Past</span>
+
+                    <div className="flex flex-wrap items-center gap-4 px-5 pb-5 pt-3 border-t border-white/5 mt-2">
+                      <span className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-white/35">
+                        <span className="inline-block h-2 w-2 rounded-sm bg-emerald-400/50" /> Available
+                      </span>
+                      <span className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-white/35">
+                        <span className="inline-block h-2 w-2 rounded-sm bg-amber-400/50" /> Limited
+                      </span>
+                      <span className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-white/35">
+                        <span className="inline-block h-2 w-2 rounded-sm bg-rose-400/50" /> Full
+                      </span>
+                      <span className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-white/35">
+                        <span className="inline-block h-2 w-2 rounded-sm bg-white/10 border border-white/20" /> Past
+                      </span>
+                      <span className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-white/35 ml-auto">
+                        <span className="inline-block h-2 w-2 rounded-sm bg-[#C8A86B]" /> Selected
+                      </span>
                     </div>
                   </div>
                 )}
@@ -250,12 +333,30 @@ export default function BookingPage() {
                     <Stepper value={children} min={0} max={selectedRoom?.maxChildren ?? 2} onChange={setChildren} />
                   </Field>
                   <Field label="Units">
-                    <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                      <span className="text-sm">{units} / {maxUnits}</span>
-                      <div className="flex gap-2">
-                        <button type="button" onClick={() => setUnits(Math.max(1, units - 1))} className="h-7 w-7 rounded-full border border-white/15 text-white/80 hover:bg-white/10 text-xs">−</button>
-                        <button type="button" onClick={() => setUnits(Math.min(maxUnits, units + 1))} className="h-7 w-7 rounded-full border border-white/15 text-white/80 hover:bg-white/10 text-xs">+</button>
+                    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">{units} / {maxUnits}</span>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => setUnits(Math.max(1, units - 1))} disabled={units <= 1} className="h-7 w-7 rounded-full border border-white/15 text-white/80 hover:bg-white/10 text-xs disabled:opacity-30 disabled:cursor-not-allowed">−</button>
+                          <button type="button" onClick={() => setUnits(Math.min(maxUnits, units + 1))} disabled={units >= maxUnits} className="h-7 w-7 rounded-full border border-white/15 text-white/80 hover:bg-white/10 text-xs disabled:opacity-30 disabled:cursor-not-allowed">+</button>
+                        </div>
                       </div>
+                      {maxUnits > 1 && (
+                        <div className="mt-3 flex gap-1">
+                          {Array.from({ length: maxUnits }).map((_, i) => {
+                            const filled = i < units;
+                            return (
+                              <div
+                                key={i}
+                                className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                                  filled ? "bg-[#C8A86B]" : "bg-white/10"
+                                }`}
+                              />
+                            );
+                          })}
+                        </div>
+                      )}
+                      <p className="mt-2 text-[9px] text-white/30 uppercase tracking-wider">{maxUnits - units} unit{maxUnits - units !== 1 ? "s" : ""} remaining</p>
                     </div>
                   </Field>
                 </div>
@@ -265,13 +366,23 @@ export default function BookingPage() {
                   <select value={roomId} onChange={(e) => { setRoomId(e.target.value); setUnits(1); }} className="booking-input">
                     {pmsRooms.map((r) => {
                       const avail = r.availableUnits ?? r.units;
+                      const pct = avail / r.units;
                       return (
                         <option key={r.id} value={r.id} className="bg-[#0A0D0C]" disabled={avail === 0}>
-                          {r.name} — {formatPrice(r.currentPrice, "INR")}/night {avail > 0 ? `(${avail} left)` : "(sold out)"}
+                          {r.name} — {formatPrice(r.currentPrice, "INR")}/night {avail > 0 ? `(${avail}/${r.units} available)` : "(sold out)"}
                         </option>
                       );
                     })}
                   </select>
+                  {selectedRoom && (
+                    <div className="mt-2 flex items-center gap-2 text-[10px] text-white/40">
+                      <span className={`inline-block h-1.5 w-1.5 rounded-full ${
+                        (selectedRoom.availableUnits ?? selectedRoom.units) === 0 ? "bg-rose-400" :
+                        (selectedRoom.availableUnits ?? selectedRoom.units) <= (selectedRoom.units / 2) ? "bg-amber-400" : "bg-emerald-400"
+                      }`} />
+                      {(selectedRoom.availableUnits ?? selectedRoom.units)} of {selectedRoom.units} units available
+                    </div>
+                  )}
                 </Field>
 
                 {/* Meal plan */}
