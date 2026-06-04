@@ -117,7 +117,7 @@ export async function replaceMealPlans(plans: any[]) {
 // ── Blocked Dates ──────────────────────────────────────────────────────
 
 export async function getBlockedDates() {
-  const res = await query("SELECT id, room_id, date, unit_index FROM blocked_dates ORDER BY room_id, date");
+  const res = await query("SELECT id, room_id, to_char(date, 'YYYY-MM-DD') AS date, unit_index FROM blocked_dates ORDER BY room_id, date");
   return res.rows as any[];
 }
 
@@ -189,26 +189,25 @@ export async function createBooking(data: {
 export async function getMonthAvailability(roomId: number, year: number, month: number) {
   const monthStr = String(month).padStart(2, "0");
   const startDate = `${year}-${monthStr}-01`;
-  const endDate = `${year}-${monthStr}-31`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const endDate = `${year}-${monthStr}-${String(lastDay).padStart(2, "0")}`;
 
   const room = await query("SELECT units FROM rooms WHERE id = $1", [roomId]);
   const totalUnits = room.rows.length > 0 ? room.rows[0].units : 1;
 
   const blocked = await query(
-    "SELECT date, unit_index FROM blocked_dates WHERE room_id = $1 AND date >= $2 AND date <= $3 ORDER BY date",
+    "SELECT to_char(date, 'YYYY-MM-DD') AS date_str, unit_index FROM blocked_dates WHERE room_id = $1 AND date >= $2::date AND date <= $3::date ORDER BY date",
     [roomId, startDate, endDate]
   );
 
-  const checkInEnd = endDate;
-  const checkOutStart = startDate;
   const bookings = await query(
-    "SELECT check_in, check_out, units, status, guest_name, booking_ref FROM bookings WHERE room_id = $1 AND check_in < $2 AND check_out > $3 AND status != 'cancelled' ORDER BY check_in",
-    [roomId, checkInEnd, checkOutStart]
+    "SELECT to_char(check_in, 'YYYY-MM-DD') AS check_in_str, to_char(check_out, 'YYYY-MM-DD') AS check_out_str, units, status, guest_name, booking_ref FROM bookings WHERE room_id = $1 AND check_in < $3::date + 1 AND check_out > $2::date AND status != 'cancelled' ORDER BY check_in",
+    [roomId, startDate, endDate]
   );
 
   return {
-    blocked: blocked.rows.map((r: any) => ({ date: formatDate(r.date), unitIndex: r.unit_index })),
-    bookings: bookings.rows.map((r: any) => ({ checkIn: formatDate(r.check_in), checkOut: formatDate(r.check_out), units: r.units, guestName: r.guest_name, bookingRef: r.booking_ref })),
+    blocked: blocked.rows.map((r: any) => ({ date: r.date_str, unitIndex: r.unit_index })),
+    bookings: bookings.rows.map((r: any) => ({ checkIn: r.check_in_str, checkOut: r.check_out_str, units: r.units, guestName: r.guest_name, bookingRef: r.booking_ref })),
     totalUnits,
   };
 }
