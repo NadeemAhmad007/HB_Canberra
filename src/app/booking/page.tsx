@@ -96,11 +96,15 @@ export default function BookingPage() {
     if (!calData || !selectedRoom) return "future";
     const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
     if (dateStr < minDate) return "past";
-    if (calData.blocked.includes(dateStr)) return "blocked";
+    // Count blocked units on this date
+    const blockedOnDay = calData.blocked.filter((b: any) => b.date === dateStr);
+    const blockedUnitCount = new Set(blockedOnDay.map((b: any) => b.unitIndex)).size;
     const totalBooked = calData.bookings
       .filter((b: any) => dateStr >= b.checkIn && dateStr < b.checkOut)
       .reduce((s: number, b: any) => s + b.units, 0);
-    if (totalBooked >= calData.totalUnits) return "full";
+    const used = totalBooked + blockedUnitCount;
+    if (used >= calData.totalUnits) return "full";
+    if (blockedUnitCount > 0) return "partial";
     return "available";
   };
 
@@ -173,21 +177,24 @@ export default function BookingPage() {
                 {/* Room gallery & virtual tour */}
                 {selectedRoom && (
                   <div className="rounded-2xl border border-white/10 overflow-hidden">
-                    <div className="aspect-video relative bg-white/[0.03]">
-                      {tourUrl && !showTour ? (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <button type="button" onClick={() => setShowTour(true)} className="flex items-center gap-3 rounded-full bg-white/10 backdrop-blur-md px-6 py-3 text-sm hover:bg-white/20 transition">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-5 w-5"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16" fill="currentColor" stroke="none"/></svg>
-                            Take 360° Virtual Tour
-                          </button>
-                        </div>
-                      ) : tourUrl && showTour ? (
-                        <div className="relative w-full h-full">
+                    <div className="aspect-video relative bg-white/[0.03] flex items-center justify-center overflow-hidden">
+                      {tourUrl && !showTour && (
+                        <button type="button" onClick={() => setShowTour(true)} className="flex items-center gap-3 rounded-full bg-white/10 backdrop-blur-md px-6 py-3 text-sm hover:bg-white/20 transition z-10">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-5 w-5"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16" fill="currentColor" stroke="none"/></svg>
+                          Take 360° Virtual Tour
+                        </button>
+                      )}
+                      {tourUrl && showTour && (
+                        <div className="absolute inset-0">
                           <iframe id="tour-embeded" name="Houseboat Canberra" src={tourUrl} frameBorder="0" width="100%" height="100%" scrolling="no" allow="vr; xr; accelerometer; gyroscope; autoplay;" />
                           <button type="button" onClick={() => setShowTour(false)} className="absolute top-3 right-3 rounded-full bg-black/60 px-3 py-1 text-[10px] uppercase tracking-wider text-white/80">Close Tour</button>
                         </div>
-                      ) : (
-                        <div className="absolute inset-0 flex items-center justify-center text-white/20 text-sm">Room preview</div>
+                      )}
+                      {!tourUrl && (
+                        <div className="text-white/20 text-sm flex flex-col items-center gap-2">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="h-10 w-10"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                          <span>Room gallery</span>
+                        </div>
                       )}
                     </div>
                     <div className="p-5">
@@ -224,9 +231,9 @@ export default function BookingPage() {
                         const isSelected = checkIn && `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}` === checkIn;
                         const isRange = checkIn && checkOut && `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}` > checkIn && `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}` < checkOut;
                         return (
-                          <div key={d} className={`py-1.5 text-[11px] rounded ${st === "past" ? "text-white/10" : st === "blocked" || st === "full" ? "text-rose-400/50 bg-rose-500/10 cursor-not-allowed" : st === "available" ? "text-emerald-300/70 hover:bg-white/5 cursor-pointer" : "text-white/40"} ${isSelected ? "ring-1 ring-[#C8A86B] bg-[#C8A86B]/10" : ""} ${isRange ? "bg-white/[0.03]" : ""}`}
+                          <div key={d} className={`py-1.5 text-[11px] rounded ${st === "past" ? "text-white/10" : st === "full" ? "text-rose-400/50 bg-rose-500/10 cursor-not-allowed" : st === "partial" ? "text-amber-300/70 bg-amber-500/10 hover:bg-white/5 cursor-pointer" : st === "available" ? "text-emerald-300/70 hover:bg-white/5 cursor-pointer" : "text-white/40"} ${isSelected ? "ring-1 ring-[#C8A86B] bg-[#C8A86B]/10" : ""} ${isRange ? "bg-white/[0.03]" : ""}`}
                             onClick={() => {
-                              if (st === "available" || st === "future") {
+                              if (st === "available" || st === "partial" || st === "future") {
                                 const ds = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
                                 if (!checkIn || (checkIn && checkOut)) {
                                   setCheckIn(ds); setCheckOut("");
@@ -243,7 +250,8 @@ export default function BookingPage() {
                     </div>
                     <div className="flex gap-4 mt-4 text-[9px] uppercase tracking-wider text-white/40">
                       <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-full bg-emerald-300/50" /> Available</span>
-                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-full bg-rose-400/50" /> Blocked / Full</span>
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-full bg-amber-400/50" /> Partial</span>
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-full bg-rose-400/50" /> Full / Blocked</span>
                       <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 border border-white/20 rounded-full" /> Past</span>
                     </div>
                   </div>

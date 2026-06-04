@@ -51,18 +51,21 @@ export default function InventoryPage() {
   const safeBookings = Array.isArray(bookings) ? bookings : [];
   const safeBlocked = Array.isArray(blockedDates) ? blockedDates : [];
 
-  // Expand rooms into per-unit rows
+  // Expand rooms into per-unit rows with unitIndex
   const unitRows = rooms.flatMap((room: any) =>
     Array.from({ length: room.units || 1 }, (_, ui) => ({
       id: `${room.id}-${ui + 1}`,
       roomId: room.id,
+      unitIndex: ui + 1,
       label: room.units > 1 ? `${room.name} ${ui + 1}` : room.name,
       roomName: room.name,
     }))
   );
 
-  const statusFor = (roomId: number, roomName: string, date: string): string => {
-    const isBlocked = safeBlocked.some((bd: any) => parseInt(bd.room_id) === roomId && bd.date === date);
+  const statusFor = (roomId: number, roomName: string, unitIndex: number, date: string): string => {
+    const isBlocked = safeBlocked.some((bd: any) =>
+      parseInt(bd.room_id) === roomId && bd.date === date && (parseInt(bd.unit_index) || 1) === unitIndex
+    );
     if (isBlocked) return "blocked";
     const b = safeBookings.find((x: any) =>
       x.room_name === roomName &&
@@ -74,22 +77,27 @@ export default function InventoryPage() {
     return "available";
   };
 
-  const toggleBlock = async (roomId: number, date: string) => {
-    const isBlocked = safeBlocked.some((bd: any) => parseInt(bd.room_id) === roomId && bd.date === date);
-    const current: Record<string, string[]> = {};
-    rooms.forEach((r: any) => { current[r.id] = []; });
+  const toggleBlock = async (roomId: number, unitIndex: number, date: string) => {
+    const isBlocked = safeBlocked.some((bd: any) =>
+      parseInt(bd.room_id) === roomId && bd.date === date && (parseInt(bd.unit_index) || 1) === unitIndex
+    );
+    // Build full blocked list
+    const all: { room_id: number; date: string; unit_index: number }[] = [];
     safeBlocked.forEach((bd: any) => {
-      const rid = parseInt(bd.room_id) || bd.room_id;
-      if (!current[rid]) current[rid] = [];
-      current[rid].push(bd.date);
+      all.push({
+        room_id: parseInt(bd.room_id),
+        date: bd.date,
+        unit_index: parseInt(bd.unit_index) || 1,
+      });
     });
     if (isBlocked) {
-      current[roomId] = (current[roomId] || []).filter((d: string) => d !== date);
+      // Remove this specific unit+date entry
+      const idx = all.findIndex((b) => b.room_id === roomId && b.date === date && b.unit_index === unitIndex);
+      if (idx !== -1) all.splice(idx, 1);
     } else {
-      if (!current[roomId]) current[roomId] = [];
-      current[roomId].push(date);
+      all.push({ room_id: roomId, date, unit_index: unitIndex });
     }
-    await fetch("/api/admin", { method: "PUT", headers: h(), body: JSON.stringify({ resource: "blocked-dates", data: current }) });
+    await fetch("/api/admin", { method: "PUT", headers: h(), body: JSON.stringify({ resource: "blocked-dates", data: all }) });
     toast({ title: isBlocked ? "Date unblocked" : "Date blocked", type: "success" });
     fetchData();
   };
@@ -100,7 +108,7 @@ export default function InventoryPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div><h1 className="text-2xl font-light" style={{ fontFamily: "var(--font-display)" }}>Inventory</h1><p className="mt-1 text-sm text-white/50">Click a date to block/unblock that room type</p></div>
+        <div><h1 className="text-2xl font-light" style={{ fontFamily: "var(--font-display)" }}>Inventory</h1><p className="mt-1 text-sm text-white/50">Click a date to block/unblock that specific unit</p></div>
         <div className="flex items-center gap-3">
           <div className="flex rounded-xl border border-white/10 overflow-hidden">
             {[14, 30, 60].map((d) => (
@@ -134,27 +142,24 @@ export default function InventoryPage() {
             </tr>
           </thead>
           <tbody>
-            {unitRows.map((unit) => {
-              const st = "available";
-              return (
-                <tr key={unit.id} className="border-b border-white/5">
-                  <td className="px-4 py-2.5 text-white/70 text-xs sticky left-0 bg-[#0A0D0C] z-10">{unit.label}</td>
-                  {nextDays.map((d) => {
-                    const cellStatus = statusFor(unit.roomId, unit.roomName, d);
-                    return (
-                      <td key={d} onClick={() => toggleBlock(unit.roomId, d)}
-                        className={`px-1 py-2.5 text-center ${STATUS_COLORS[cellStatus]} border-l border-white/[0.02] cursor-pointer hover:ring-1 hover:ring-white/20 transition`}
-                        title={cellStatus === "blocked" ? "Click to unblock" : "Click to block"}
-                      >
-                        <span className="text-[8px] text-white/50">
-                          {cellStatus === "available" ? "✓" : cellStatus === "occupied" ? "●" : cellStatus === "reserved" ? "○" : "🔒"}
-                        </span>
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
+            {unitRows.map((unit) => (
+              <tr key={unit.id} className="border-b border-white/5">
+                <td className="px-4 py-2.5 text-white/70 text-xs sticky left-0 bg-[#0A0D0C] z-10">{unit.label}</td>
+                {nextDays.map((d) => {
+                  const cellStatus = statusFor(unit.roomId, unit.roomName, unit.unitIndex, d);
+                  return (
+                    <td key={d} onClick={() => toggleBlock(unit.roomId, unit.unitIndex, d)}
+                      className={`px-1 py-2.5 text-center ${STATUS_COLORS[cellStatus]} border-l border-white/[0.02] cursor-pointer hover:ring-1 hover:ring-white/20 transition`}
+                      title={cellStatus === "blocked" ? "Click to unblock" : "Click to block"}
+                    >
+                      <span className="text-[8px] text-white/50">
+                        {cellStatus === "available" ? "✓" : cellStatus === "occupied" ? "●" : cellStatus === "reserved" ? "○" : "🔒"}
+                      </span>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

@@ -13,6 +13,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 export default function CalendarPage() {
   const [rooms, setRooms] = useState<any[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
+  const [blockedDates, setBlockedDates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(new Date().getMonth());
   const [year, setYear] = useState(new Date().getFullYear());
@@ -26,13 +27,20 @@ export default function CalendarPage() {
     Promise.all([
       fetch("/api/admin?resource=rooms", { headers: h() }).then((r) => r.json()),
       fetch("/api/admin?resource=bookings", { headers: h() }).then((r) => r.json()),
-    ]).then(([r, b]) => { setRooms(Array.isArray(r) ? r : []); setBookings(Array.isArray(b) ? b : []); }).catch(() => {}).finally(() => setLoading(false));
+      fetch("/api/admin?resource=blocked-dates", { headers: h() }).then((r) => r.json()),
+    ]).then(([r, b, bl]) => {
+      setRooms(Array.isArray(r) ? r : []);
+      setBookings(Array.isArray(b) ? b : []);
+      setBlockedDates(Array.isArray(bl) ? bl : []);
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   if (loading) return <Skeleton className="h-96 w-full" />;
   if (!Array.isArray(rooms) || !rooms.length) return <EmptyState title="No rooms" />;
 
   const safeBookings = Array.isArray(bookings) ? bookings : [];
+  const safeBlocked = Array.isArray(blockedDates) ? blockedDates : [];
+
   const visible = safeBookings.filter((b: any) =>
     b.status !== "cancelled" &&
     b.check_in?.slice(0, 7) <= monthStr &&
@@ -44,6 +52,7 @@ export default function CalendarPage() {
     Array.from({ length: room.units || 1 }, (_, ui) => ({
       id: `${room.id}-${ui + 1}`,
       roomId: room.id,
+      unitIndex: ui + 1,
       label: room.units > 1 ? `${room.name} ${ui + 1}` : room.name,
       roomName: room.name,
     }))
@@ -54,7 +63,7 @@ export default function CalendarPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-light" style={{ fontFamily: "var(--font-display)" }}>Calendar</h1><p className="mt-1 text-sm text-white/50">Monthly view — hover for booking details</p></div>
+        <div><h1 className="text-2xl font-light" style={{ fontFamily: "var(--font-display)" }}>Calendar</h1><p className="mt-1 text-sm text-white/50">Monthly view — per-unit availability</p></div>
         <div className="flex items-center gap-3">
           <button onClick={() => { if (month === 0) { setMonth(11); setYear(year - 1); } else setMonth(month - 1); }} className="rounded-xl border border-white/10 px-4 py-2 text-sm hover:bg-white/5">←</button>
           <span className="text-sm font-light min-w-24 text-center">{MONTHS[month]} {year}</span>
@@ -82,11 +91,21 @@ export default function CalendarPage() {
                 <div className="flex relative min-h-[36px] flex-1">
                   {Array.from({ length: DAYS }).map((_, d) => {
                     const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(d + 1).padStart(2, "0")}`;
-                    const bOnDay = unitBookings.find((b: any) => dateStr >= b.check_in && dateStr < b.check_out);
+                    const isBlocked = safeBlocked.some((bd: any) =>
+                      parseInt(bd.room_id) === unit.roomId && bd.date === dateStr && (parseInt(bd.unit_index) || 1) === unit.unitIndex
+                    );
+                    const bOnDay = !isBlocked && unitBookings.find((b: any) => dateStr >= b.check_in && dateStr < b.check_out);
                     const isStart = bOnDay && dateStr === bOnDay.check_in;
                     return (
-                      <div key={d} className="w-10 shrink-0 border-l border-white/[0.02] relative" style={bOnDay ? { backgroundColor: "rgba(200,168,107,0.12)" } : undefined}>
-                        {isStart && bOnDay && (
+                      <div key={d} className="w-10 shrink-0 border-l border-white/[0.02] relative"
+                        style={isBlocked ? { backgroundColor: "rgba(225,29,72,0.12)" } : bOnDay ? { backgroundColor: "rgba(200,168,107,0.12)" } : undefined}
+                      >
+                        {isBlocked && (
+                          <div className="absolute inset-0 flex items-center justify-center z-10">
+                            <span className="text-[7px] text-rose-400/60">🔒</span>
+                          </div>
+                        )}
+                        {isStart && bOnDay && !isBlocked && (
                           <div className="absolute inset-0 z-10 flex items-center px-1.5 cursor-pointer rounded-sm" style={{ backgroundColor: "rgba(200,168,107,0.35)", margin: 1 }}
                             onMouseEnter={(e) => setTooltip({ x: e.clientX, y: e.clientY, b: bOnDay })}
                             onMouseLeave={() => setTooltip(null)}

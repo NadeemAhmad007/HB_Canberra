@@ -181,20 +181,22 @@ export async function POST(request: Request) {
           from: `Houseboat Canberra <${process.env.EMAIL_FROM || "onboarding@resend.dev"}>`,
           to: email,
           subject: `Booking Enquiry Received — ${ref}`,
-          html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto">
-            <h2 style="color:#C8A86B">Thank you, ${guestName}!</h2>
-            <p>Your booking enquiry has reached the reservations desk at <strong>Houseboat Canberra</strong>.</p>
+          html: `<div style="font-family:Georgia,serif;max-width:600px;margin:0 auto;background:#0A0D0C;color:#fff;padding:48px 40px;border-radius:12px">
+            <div style="text-align:center;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:24px;margin-bottom:32px">
+              <h1 style="font-size:20px;font-weight:400;letter-spacing:4px;text-transform:uppercase;color:#C8A86B;margin:0">Houseboat Canberra</h1>
+              <p style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:3px;text-transform:uppercase;margin:8px 0 0">Luxury Afloat — Dal Lake</p>
+            </div>
+            <h2 style="font-size:22px;font-weight:400;color:#C8A86B;margin:0 0 8px">Thank you, ${guestName}!</h2>
+            <p style="font-size:14px;color:rgba(255,255,255,0.7);line-height:1.6;margin:0 0 24px">Your booking enquiry has reached the reservations desk at <strong style="color:#fff">Houseboat Canberra</strong>. We will confirm your stay within the hour.</p>
             <table style="width:100%;border-collapse:collapse;margin:24px 0">
-              <tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;color:#666">Reference</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px"><strong>${ref}</strong></td></tr>
-              <tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;color:#666">Room</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px">${roomName} × ${unitsRequested}</td></tr>
-              <tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;color:#666">Check-in</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px">${checkIn}</td></tr>
-              <tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;color:#666">Check-out</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px">${checkOut}</td></tr>
-              <tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;color:#666">Guests</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px">${adults} adults, ${children} children</td></tr>
-              <tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;color:#666">Total</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px"><strong>₹${(amount || 0).toLocaleString()}</strong></td></tr>
+              <tr><td style="padding:10px 14px;border:1px solid rgba(255,255,255,0.1);font-size:12px;color:rgba(255,255,255,0.5)">Reference</td><td style="padding:10px 14px;border:1px solid rgba(255,255,255,0.1);font-size:13px;color:#C8A86B;font-family:monospace"><strong>${ref}</strong></td></tr>
+              <tr><td style="padding:10px 14px;border:1px solid rgba(255,255,255,0.1);font-size:12px;color:rgba(255,255,255,0.5)">Room</td><td style="padding:10px 14px;border:1px solid rgba(255,255,255,0.1);font-size:13px">${roomName} × ${unitsRequested}</td></tr>
+              <tr><td style="padding:10px 14px;border:1px solid rgba(255,255,255,0.1);font-size:12px;color:rgba(255,255,255,0.5)">Check-in</td><td style="padding:10px 14px;border:1px solid rgba(255,255,255,0.1);font-size:13px">${checkIn}</td></tr>
+              <tr><td style="padding:10px 14px;border:1px solid rgba(255,255,255,0.1);font-size:12px;color:rgba(255,255,255,0.5)">Check-out</td><td style="padding:10px 14px;border:1px solid rgba(255,255,255,0.1);font-size:13px">${checkOut}</td></tr>
+              <tr><td style="padding:10px 14px;border:1px solid rgba(255,255,255,0.1);font-size:12px;color:rgba(255,255,255,0.5)">Guests</td><td style="padding:10px 14px;border:1px solid rgba(255,255,255,0.1);font-size:13px">${adults} adults, ${children} children</td></tr>
+              <tr><td style="padding:10px 14px;border:1px solid rgba(255,255,255,0.1);font-size:12px;color:rgba(255,255,255,0.5)">Total</td><td style="padding:10px 14px;border:1px solid rgba(255,255,255,0.1);font-size:13px"><strong>₹${(amount || 0).toLocaleString()}</strong></td></tr>
             </table>
-            <p style="color:#666;font-size:14px">You will hear from us within the hour to confirm your stay.</p>
-            <hr style="border:none;border-top:1px solid #eee;margin:24px 0" />
-            <p style="color:#999;font-size:12px">Houseboat Canberra — Dal Lake, Srinagar</p>
+            <p style="font-size:12px;color:rgba(255,255,255,0.4);text-align:center;margin:32px 0 0;border-top:1px solid rgba(255,255,255,0.1);padding-top:24px">Houseboat Canberra — Dal Lake, Srinagar<br>${process.env.EMAIL_FROM ? '' : ''}</p>
           </div>`,
         });
       } catch { }

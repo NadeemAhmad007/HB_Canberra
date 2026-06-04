@@ -55,6 +55,7 @@ export interface Booking {
 export interface BlockedDate {
   room_id: number;
   date: string;
+  unit_index: number;
 }
 
 // ── Rooms ────────────────────────────────────────────────────────────────
@@ -100,23 +101,19 @@ export async function getAvailableUnits(roomId: number, checkIn: string, checkOu
       AND check_out > ${checkIn}::date
   ` as unknown as Array<{ booked: number }>;
 
-  // Count blocked dates that cover ANY day in the range
-  const blockedDays = await sql`
-    SELECT COUNT(DISTINCT date) as days
+  // Count distinct blocked units (how many units have any blocked day in range)
+  const blockedUnits = await sql`
+    SELECT COUNT(DISTINCT unit_index) as bu
     FROM blocked_dates
     WHERE room_id = ${roomId}
       AND date >= ${checkIn}::date
       AND date < ${checkOut}::date
-  ` as unknown as Array<{ days: number }>;
+  ` as unknown as Array<{ bu: number }>;
 
   const un = total[0].units;
   const bk = Number(booked?.[0]?.booked ?? 0);
-  const bl = Number(blockedDays?.[0]?.days ?? 0);
-
-  // Each distinct blocked date represents one unit being unavailable on that day.
-  // Cap blocked units at the total units for the room.
-  const blockedUnits = Math.min(un, bl);
-  const available = un - bk - blockedUnits;
+  const bu = Number(blockedUnits?.[0]?.bu ?? 0);
+  const available = un - bk - bu;
   return Math.max(0, available);
 }
 
@@ -186,22 +183,20 @@ export async function replacePropertyConfig(config: Record<string, string>) {
 // ── Blocked dates ────────────────────────────────────────────────────────
 export async function getBlockedDates(): Promise<BlockedDate[]> {
   const sql = getSql();
-  return sql`SELECT room_id, date::text FROM blocked_dates ORDER BY room_id, date` as unknown as Promise<BlockedDate[]>;
+  return sql`SELECT room_id, date::text, unit_index FROM blocked_dates ORDER BY room_id, unit_index, date` as unknown as Promise<BlockedDate[]>;
 }
 
 export async function replaceBlockedDates(
-  blocked: Record<string, string[]>
+  blocked: { room_id: number; date: string; unit_index: number }[]
 ) {
   const sql = getSql();
   await sql`DELETE FROM blocked_dates`;
-  for (const [roomId, dates] of Object.entries(blocked)) {
-    for (const date of dates) {
-      await sql`
-        INSERT INTO blocked_dates (room_id, date)
-        VALUES (${parseInt(roomId)}, ${date})
-        ON CONFLICT DO NOTHING
-      `;
-    }
+  for (const b of blocked) {
+    await sql`
+      INSERT INTO blocked_dates (room_id, date, unit_index)
+      VALUES (${b.room_id}, ${b.date}, ${b.unit_index})
+      ON CONFLICT DO NOTHING
+    `;
   }
 }
 
@@ -399,12 +394,12 @@ export async function getMonthAvailability(roomId: number, year: number, month: 
   const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
   const nextMonth = month === 12 ? `${year + 1}-01-01` : `${year}-${String(month + 1).padStart(2, "0")}-01`;
   const [blocked, booked, total] = await Promise.all([
-    sql`SELECT date::text FROM blocked_dates WHERE room_id = ${roomId} AND date >= ${monthStart}::date AND date < ${nextMonth}::date` as unknown as Array<{ date: string }>,
+    sql`SELECT date::text, unit_index FROM blocked_dates WHERE room_id = ${roomId} AND date >= ${monthStart}::date AND date < ${nextMonth}::date` as unknown as Array<{ date: string; unit_index: number }>,
     sql`SELECT check_in, check_out, units FROM bookings WHERE room_id = ${roomId} AND status != 'cancelled' AND check_in < ${nextMonth}::date AND check_out > ${monthStart}::date` as unknown as Array<{ check_in: string; check_out: string; units: number }>,
     sql`SELECT units FROM rooms WHERE id = ${roomId}` as unknown as Array<{ units: number }>,
   ]);
   return {
-    blocked: blocked.map(b => b.date),
+    blocked: blocked.map(b => ({ date: b.date, unitIndex: b.unit_index })),
     bookings: booked.map(b => ({ checkIn: b.check_in, checkOut: b.check_out, units: b.units })),
     totalUnits: total?.[0]?.units ?? 0,
   };
