@@ -24,6 +24,7 @@ import {
   getInvoices,
   createInvoice,
   updateInvoiceStatus,
+  updateBookingStatus,
   bulkUpdateBookingStatus,
 } from "@/lib/db";
 import { neon } from "@neondatabase/serverless";
