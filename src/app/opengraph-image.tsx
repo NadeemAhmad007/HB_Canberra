@@ -20,6 +20,10 @@ export default async function Image() {
     .png({ compressionLevel: 9 })
     .toBuffer();
 
+  // Satori/ImageResponse needs the image as a data URL (its src type
+  // is `string | Blob`, not ArrayBuffer). Base64 a ~360px PNG and embed.
+  const logoDataUrl = `data:image/png;base64,${logoPng.toString("base64")}`;
+
   return new ImageResponse(
     (
       <div
@@ -71,7 +75,7 @@ export default async function Image() {
         {/* Logo */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={logoPng as any}
+          src={logoDataUrl}
           width={220}
           height={220}
           alt="Houseboat Canberra"
