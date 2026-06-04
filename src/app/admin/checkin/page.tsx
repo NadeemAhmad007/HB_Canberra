@@ -5,7 +5,9 @@ import { Badge } from "@/components/admin/Badge";
 import { Skeleton } from "@/components/admin/Skeleton";
 import { EmptyState } from "@/components/admin/Skeleton";
 import { useToast } from "@/components/admin/Toast";
-import { UserCheck, UserX, CalendarDays, Search } from "lucide-react";
+import { usePoll } from "@/lib/usePoll";
+import { UserCheck, UserX, CalendarDays, Search, IdCard } from "lucide-react";
+import { Modal } from "@/components/admin/Dialogs";
 
 const token = () => sessionStorage.getItem("admin_token") || "";
 const h = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token()}` });
@@ -15,6 +17,8 @@ export default function CheckinPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"arrivals" | "in-house" | "departures">("arrivals");
+  const [idProofFor, setIdProofFor] = useState<string | null>(null);
+  const [idProof, setIdProof] = useState("");
   const { toast } = useToast();
 
   const fetchData = () => {
@@ -28,10 +32,7 @@ export default function CheckinPage() {
 
   useEffect(() => { fetchData(); }, []);
 
-  useEffect(() => {
-    const id = setInterval(fetchData, 30000);
-    return () => clearInterval(id);
-  }, []);
+  usePoll(fetchData, 60000, true);
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -43,8 +44,27 @@ export default function CheckinPage() {
     .filter((b: any) => !search || b.guest_name?.toLowerCase().includes(search.toLowerCase()) || b.booking_ref?.toLowerCase().includes(search.toLowerCase()));
 
   const doCheckin = async (ref: string) => {
-    await fetch("/api/admin", { method: "PUT", headers: h(), body: JSON.stringify({ resource: "checkin", data: { bookingRef: ref } }) });
+    const res = await fetch("/api/admin", { method: "PUT", headers: h(), body: JSON.stringify({ resource: "checkin", data: { bookingRef: ref } }) });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      toast({ title: "Check-in failed", message: body.error || "Invalid status transition", type: "error" });
+      return;
+    }
     toast({ title: "Checked in", message: ref, type: "success" });
+    fetchData();
+  };
+
+  const openIdProof = (ref: string) => {
+    const b = data.find((x: any) => x.booking_ref === ref);
+    setIdProof(b?.id_proof || "");
+    setIdProofFor(ref);
+  };
+
+  const saveIdProof = async () => {
+    if (!idProofFor) return;
+    await fetch("/api/admin", { method: "PUT", headers: h(), body: JSON.stringify({ resource: "checkin-id-proof", data: { bookingRef: idProofFor, idProof } }) });
+    toast({ title: "ID proof saved", type: "success" });
+    setIdProofFor(null);
     fetchData();
   };
 
@@ -96,15 +116,20 @@ export default function CheckinPage() {
                   <td className="px-4 py-3 text-white/60 text-xs">{b.check_out}</td>
                   <td className="px-4 py-3"><Badge status={b.status} /></td>
                   <td className="px-4 py-3">
-                    {view === "arrivals" && (b.status === "confirmed" || b.status === "pending") && (
-                      <button onClick={() => doCheckin(b.booking_ref)} className="flex items-center gap-1.5 rounded-lg bg-emerald-500/20 px-3 py-1.5 text-[10px] uppercase tracking-wider text-emerald-300 hover:bg-emerald-500/30"><UserCheck className="h-3 w-3" /> Check in</button>
-                    )}
-                    {view === "in-house" && (
-                      <button onClick={() => doCheckout(b.booking_ref)} className="flex items-center gap-1.5 rounded-lg bg-amber-500/20 px-3 py-1.5 text-[10px] uppercase tracking-wider text-amber-300 hover:bg-amber-500/30"><UserX className="h-3 w-3" /> Check out</button>
-                    )}
-                    {view === "departures" && (
-                      <button onClick={() => doCheckout(b.booking_ref)} className="flex items-center gap-1.5 rounded-lg bg-amber-500/20 px-3 py-1.5 text-[10px] uppercase tracking-wider text-amber-300 hover:bg-amber-500/30"><UserX className="h-3 w-3" /> Check out</button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {view === "arrivals" && (b.status === "confirmed" || b.status === "pending") && (
+                        <button onClick={() => doCheckin(b.booking_ref)} className="flex items-center gap-1.5 rounded-lg bg-emerald-500/20 px-3 py-1.5 text-[10px] uppercase tracking-wider text-emerald-300 hover:bg-emerald-500/30"><UserCheck className="h-3 w-3" /> Check in</button>
+                      )}
+                      {view === "in-house" && (
+                        <button onClick={() => doCheckout(b.booking_ref)} className="flex items-center gap-1.5 rounded-lg bg-amber-500/20 px-3 py-1.5 text-[10px] uppercase tracking-wider text-amber-300 hover:bg-amber-500/30"><UserX className="h-3 w-3" /> Check out</button>
+                      )}
+                      {view === "departures" && (
+                        <button onClick={() => doCheckout(b.booking_ref)} className="flex items-center gap-1.5 rounded-lg bg-amber-500/20 px-3 py-1.5 text-[10px] uppercase tracking-wider text-amber-300 hover:bg-amber-500/30"><UserX className="h-3 w-3" /> Check out</button>
+                      )}
+                      <button onClick={() => openIdProof(b.booking_ref)} title="ID proof" className="flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-[10px] uppercase tracking-wider text-white/50 hover:bg-white/5">
+                        <IdCard className="h-3 w-3" />{b.id_proof ? "✓" : "ID"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -112,6 +137,23 @@ export default function CheckinPage() {
           </table>
         </div>
       )}
+
+      <Modal open={!!idProofFor} onClose={() => setIdProofFor(null)} title={`ID Proof — ${idProofFor || ""}`}>
+        <div className="space-y-4">
+          <p className="text-[11px] text-white/50">Capture the guest's ID document number (passport, Aadhaar, driver's license). Stored securely on the booking.</p>
+          <input
+            autoFocus
+            value={idProof}
+            onChange={(e) => setIdProof(e.target.value)}
+            placeholder="e.g. Passport P1234567 or Aadhaar 1234-5678-9012"
+            className="w-full rounded-xl border border-white/10 bg-black px-4 py-2.5 text-sm outline-none focus:border-white/30"
+          />
+          <div className="flex gap-3 pt-2">
+            <button onClick={() => setIdProofFor(null)} className="flex-1 rounded-xl border border-white/10 py-2.5 text-[11px] uppercase tracking-wider text-white/60">Cancel</button>
+            <button onClick={saveIdProof} className="flex-1 rounded-xl bg-white py-2.5 text-[11px] uppercase tracking-wider text-black">Save</button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

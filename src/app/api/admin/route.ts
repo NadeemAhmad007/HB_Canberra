@@ -26,7 +26,17 @@ import {
   updateInvoiceStatus,
   updateBookingStatus,
   bulkUpdateBookingStatus,
+  getAvailableUnits,
+  getInvoiceByBooking,
+  getBookingByRef,
+  getSettings,
+  getTaxRate,
+  getEmailTemplate,
+  recordPayment,
+  upsertGuestFromBooking,
+  transitionBookingStatus,
 } from "@/lib/db";
+import { applyTemplate, sendEmail, settingsFromMap } from "@/lib/email";
 import { neon } from "@neondatabase/serverless";
 
 function getSql() {
@@ -166,17 +176,32 @@ export async function PUT(request: Request) {
       }
       case "booking-status": {
         const { bookingRef, status, stripePaymentIntent } = data;
+        const trans = await transitionBookingStatus(bookingRef, status);
+        if (!trans.ok) {
+          return NextResponse.json({ error: trans.reason || "Invalid transition" }, { status: 409 });
+        }
         await updateBookingStatus(bookingRef, status, stripePaymentIntent);
         try { await addActivityLog("booking_status", "booking", bookingRef, `Status changed to ${status}`); } catch (e) { console.error("[admin] activity log failed:", e); }
         return NextResponse.json({ ok: true });
       }
       case "bulk-booking-status": {
         const { refs, status } = data;
-        await bulkUpdateBookingStatus(refs, status);
-        try { await addActivityLog("bulk_booking_status", "booking", refs.join(","), `Bulk status change to ${status} (${refs.length} bookings)`); } catch (e) { console.error("[admin] activity log failed:", e); }
-        return NextResponse.json({ ok: true });
+        const allowed: string[] = [];
+        const rejected: { ref: string; reason: string }[] = [];
+        for (const ref of refs) {
+          const trans = await transitionBookingStatus(ref, status);
+          if (trans.ok) allowed.push(ref);
+          else rejected.push({ ref, reason: trans.reason || "Invalid transition" });
+        }
+        if (allowed.length > 0) await bulkUpdateBookingStatus(allowed, status);
+        try { await addActivityLog("bulk_booking_status", "booking", allowed.join(","), `Bulk status change to ${status} (${allowed.length} bookings, ${rejected.length} rejected)`); } catch (e) { console.error("[admin] activity log failed:", e); }
+        return NextResponse.json({ ok: true, applied: allowed.length, rejected });
       }
       case "checkin": {
+        const trans = await transitionBookingStatus(data.bookingRef, "checked-in");
+        if (!trans.ok) {
+          return NextResponse.json({ error: trans.reason || "Invalid transition" }, { status: 409 });
+        }
         const sql = (await import("@/lib/db")).getSql;
         const db = sql();
         await db`UPDATE bookings SET status = 'checked-in', checkin_at = now(), updated_at = now() WHERE booking_ref = ${data.bookingRef}`;
@@ -184,10 +209,47 @@ export async function PUT(request: Request) {
         return NextResponse.json({ ok: true });
       }
       case "checkout": {
+        const trans = await transitionBookingStatus(data.bookingRef, "checked-out");
+        if (!trans.ok) {
+          return NextResponse.json({ error: trans.reason || "Invalid transition" }, { status: 409 });
+        }
         const sql = (await import("@/lib/db")).getSql;
         const db = sql();
+        const bookingRow = await db`SELECT room_id, guest_name FROM bookings WHERE booking_ref = ${data.bookingRef}` as unknown as Array<{ room_id: number; guest_name: string }>;
         await db`UPDATE bookings SET status = 'checked-out', checkout_at = now(), updated_at = now() WHERE booking_ref = ${data.bookingRef}`;
         try { await addActivityLog("checkout", "booking", data.bookingRef, `Guest checked out`); } catch (e) { console.error("[admin] activity log failed:", e); }
+        // Auto-create housekeeping task for that room/unit
+        try {
+          if (bookingRow.length > 0) {
+            const r = bookingRow[0];
+            await db`INSERT INTO housekeeping_tasks (room_id, task_type, status, assigned_to, notes, scheduled_date)
+                     VALUES (${r.room_id}, 'clean', 'pending', '', ${`Auto: post-checkout for ${r.guest_name}`}, CURRENT_DATE)`;
+          }
+        } catch (e) { console.error("[admin] auto-housekeeping failed:", e); }
+        return NextResponse.json({ ok: true });
+      }
+      case "record-payment": {
+        const { bookingRef, amount, method, reference, notes } = data;
+        if (!bookingRef || !amount) {
+          return NextResponse.json({ error: "bookingRef and amount required" }, { status: 400 });
+        }
+        const booking = await getBookingByRef(bookingRef);
+        if (!booking) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+        await recordPayment({ booking_ref: bookingRef, amount, method, reference, notes, recorded_by: "admin" });
+        const newPaid = (booking.amount_paid || 0) + amount;
+        const newStatus = newPaid >= booking.amount ? "paid" : "partial";
+        const sql = getSql();
+        await sql`UPDATE bookings SET payment_status = ${newStatus}, payment_gateway = COALESCE(NULLIF(${method || ""}, ''), payment_gateway), updated_at = now() WHERE booking_ref = ${bookingRef}`;
+        try { await addActivityLog("payment_recorded", "booking", bookingRef, `Payment of ₹${amount} recorded (${method || "bank"})${reference ? ` ref ${reference}` : ""}`); } catch (e) { console.error("[admin] activity log failed:", e); }
+        try { await upsertGuestFromBooking({ name: booking.guest_name, email: booking.email, phone: booking.phone, amount_spent: amount }); } catch (e) { console.error("[admin] guest upsert failed:", e); }
+        return NextResponse.json({ ok: true, amount_paid: newPaid, payment_status: newStatus });
+      }
+      case "checkin-id-proof": {
+        const { bookingRef, idProof } = data;
+        if (!bookingRef) return NextResponse.json({ error: "bookingRef required" }, { status: 400 });
+        const sql = getSql();
+        await sql`UPDATE bookings SET id_proof = ${idProof || ""}, updated_at = now() WHERE booking_ref = ${bookingRef}`;
+        try { await addActivityLog("id_proof_captured", "booking", bookingRef, `ID proof captured`); } catch (e) { console.error("[admin] activity log failed:", e); }
         return NextResponse.json({ ok: true });
       }
       case "user": {
@@ -207,11 +269,90 @@ export async function PUT(request: Request) {
         return NextResponse.json({ ok: true });
       }
       case "mark-paid": {
-        const { bookingRef } = data;
+        const { bookingRef, amount, method, reference } = data;
         const sql = getSql();
-        await sql`UPDATE bookings SET payment_status = 'paid', payment_gateway = 'bank', status = 'confirmed', updated_at = now() WHERE booking_ref = ${bookingRef}`;
+
+        const booking = await getBookingByRef(bookingRef);
+        if (!booking) {
+          return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+        }
+        if (booking.status === "cancelled") {
+          return NextResponse.json({ error: "Cannot mark paid: booking is cancelled" }, { status: 409 });
+        }
+
+        const trans = await transitionBookingStatus(bookingRef, "confirmed");
+        if (!trans.ok && trans.from !== "confirmed") {
+          return NextResponse.json({ error: trans.reason || "Invalid transition" }, { status: 409 });
+        }
+
+        if (trans.ok) {
+          const available = await getAvailableUnits(booking.room_id, booking.check_in, booking.check_out).catch(() => 1);
+          const currentBooked = await sql`SELECT COALESCE(SUM(units), 0) AS u FROM bookings WHERE room_id = ${booking.room_id} AND booking_ref != ${bookingRef} AND check_in < ${booking.check_out} AND check_out > ${booking.check_in} AND status != 'cancelled'` as unknown as Array<{ u: string }>;
+          const otherBooked = parseInt(currentBooked[0]?.u) || 0;
+          if (otherBooked + booking.units > available + booking.units) {
+            return NextResponse.json({ error: "Overbooking prevented: no units available for these dates" }, { status: 409 });
+          }
+        }
+
+        const payAmount = amount || booking.amount - (booking.amount_paid || 0);
+        const payMethod = method || "bank";
+        await sql`UPDATE bookings SET payment_status = 'paid', payment_gateway = ${payMethod}, status = 'confirmed', updated_at = now() WHERE booking_ref = ${bookingRef}`;
+        await recordPayment({ booking_ref: bookingRef, amount: payAmount, method: payMethod, reference: reference || "", recorded_by: "admin" });
+
+        try { await upsertGuestFromBooking({ name: booking.guest_name, email: booking.email, phone: booking.phone, amount_spent: payAmount }); } catch (e) { console.error("[admin] guest upsert failed:", e); }
+
         try { await addActivityLog("bank_transfer_confirmed", "booking", bookingRef, `Bank transfer confirmed by admin`); } catch (e) { console.error("[admin] activity log failed:", e); }
-        return NextResponse.json({ ok: true });
+
+        // Auto-create invoice
+        let invoiceId: number | null = null;
+        try {
+          const existing = await getInvoiceByBooking(bookingRef);
+          if (!existing) {
+            const settings = await getSettings();
+            const taxRate = (await getTaxRate()) / 100;
+            const subtotal = booking.amount;
+            const tax = Math.round(subtotal * taxRate);
+            const total = subtotal + tax;
+            const items = [
+              { description: `${booking.room_name || "Room"} × ${booking.units} unit(s) × ${booking.nights} night(s)`, amount: Math.round(subtotal / Math.max(1, booking.nights)), qty: booking.units * booking.nights },
+            ];
+            const inv = await createInvoice({
+              booking_ref: bookingRef,
+              invoice_no: "INV-" + Date.now(),
+              guest_name: booking.guest_name,
+              items, subtotal, tax, total,
+              currency: booking.currency || "INR",
+              status: "sent",
+            });
+            invoiceId = inv?.id ?? null;
+          }
+        } catch (e) { console.error("[admin] auto-invoice failed:", e); }
+
+        // Send booking_confirmed email
+        if (booking.email) {
+          try {
+            const template = await getEmailTemplate("booking_confirmed");
+            const settings = await getSettings();
+            const info = settingsFromMap(settings);
+            if (template) {
+              const vars: Record<string, string> = {
+                guest_name: booking.guest_name,
+                booking_ref: booking.booking_ref,
+                check_in: booking.check_in,
+                check_out: booking.check_out,
+                room_name: booking.room_name || "Room",
+                amount: String(booking.amount || 0),
+                property_email: info.propertyEmail,
+                property_phone: info.propertyPhone,
+                property_website: info.propertyWebsite,
+              };
+              const html = `<div style="font-family:Georgia,serif;max-width:600px;margin:0 auto;background:#0A0D0C;color:#fff;padding:48px 40px;border-radius:12px">${applyTemplate(template.body, vars).replace(/\n/g, "<br/>")}</div>`;
+              await sendEmail({ to: booking.email, subject: template.subject, html });
+            }
+          } catch (e) { console.error("[admin] confirmation email failed:", e); }
+        }
+
+        return NextResponse.json({ ok: true, invoiceId });
       }
       case "settings": {
         const sv = getSql();

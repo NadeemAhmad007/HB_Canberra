@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/admin/Skeleton";
 import { EmptyState } from "@/components/admin/Skeleton";
 import { Modal } from "@/components/admin/Dialogs";
 import { useToast } from "@/components/admin/Toast";
+import { usePoll } from "@/lib/usePoll";
 import { CheckSquare, Square, DollarSign } from "lucide-react";
 
 const token = () => sessionStorage.getItem("admin_token") || "";
@@ -17,6 +18,7 @@ interface BookingRow {
   room_name: string; check_in: string; check_out: string; adults: number; children: number;
   units: number; amount: number; status: string; created_at: string; notes?: string;
   payment_status?: string; payment_gateway?: string; payment_id?: string;
+  amount_paid?: number; deposit_required?: boolean; deposit_amount?: number;
 }
 
 export default function BookingsPage() {
@@ -24,6 +26,10 @@ export default function BookingsPage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<BookingRow | null>(null);
   const [selectedRefs, setSelectedRefs] = useState<Set<string>>(new Set());
+  const [recording, setRecording] = useState<BookingRow | null>(null);
+  const [payAmount, setPayAmount] = useState(0);
+  const [payMethod, setPayMethod] = useState("bank");
+  const [payRef, setPayRef] = useState("");
   const { toast } = useToast();
 
   const fetchData = () => {
@@ -37,10 +43,7 @@ export default function BookingsPage() {
 
   useEffect(() => { fetchData(); }, []);
 
-  useEffect(() => {
-    const id = setInterval(fetchData, 30000);
-    return () => clearInterval(id);
-  }, []);
+  usePoll(fetchData, 60000, true);
 
   const toggleSelect = (ref: string) => {
     setSelectedRefs((prev) => {
@@ -91,6 +94,27 @@ export default function BookingsPage() {
     } catch (e) {
       toast({ title: "Failed", message: e instanceof Error ? e.message : "Could not mark as paid", type: "error" });
     }
+    fetchData();
+  };
+
+  const recordPayment = (b: BookingRow) => {
+    const outstanding = (b.amount || 0) - (b.amount_paid || 0);
+    setRecording(b);
+    setPayAmount(outstanding);
+    setPayMethod("bank");
+    setPayRef("");
+  };
+
+  const submitPayment = async () => {
+    if (!recording) return;
+    const res = await fetch("/api/admin", { method: "PUT", headers: h(), body: JSON.stringify({ resource: "record-payment", data: { bookingRef: recording.booking_ref, amount: payAmount, method: payMethod, reference: payRef } }) });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      toast({ title: "Failed", message: body.error || "Could not record", type: "error" });
+      return;
+    }
+    toast({ title: "Payment recorded", message: `₹${payAmount.toLocaleString()}`, type: "success" });
+    setRecording(null);
     fetchData();
   };
 
@@ -231,6 +255,47 @@ export default function BookingsPage() {
                 <p className="mt-1 text-white/70">{(selected as any).notes}</p>
               </div>
             )}
+            {selected.amount_paid !== undefined && (selected.amount_paid || 0) < (selected.amount || 0) && (
+              <div className="border-t border-white/10 pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-white/40">Balance</div>
+                    <div className="mt-1 text-amber-300">₹{((selected.amount || 0) - (selected.amount_paid || 0)).toLocaleString()} of ₹{(selected.amount || 0).toLocaleString()}</div>
+                  </div>
+                  <button onClick={() => recordPayment(selected)} className="rounded-lg bg-emerald-500/15 px-3 py-1.5 text-[10px] uppercase tracking-wider text-emerald-300 hover:bg-emerald-500/25">Record payment</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={!!recording} onClose={() => setRecording(null)} title={`Record payment — ${recording?.booking_ref || ""}`}>
+        {recording && (
+          <div className="space-y-4">
+            <div className="text-[11px] text-white/50">Outstanding: <span className="text-amber-300">₹{((recording.amount || 0) - (recording.amount_paid || 0)).toLocaleString()}</span></div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-white/40">Amount (INR)</label>
+              <input type="number" min={1} max={(recording.amount || 0) - (recording.amount_paid || 0)} value={payAmount} onChange={(e) => setPayAmount(parseInt(e.target.value) || 0)} className="mt-1 w-full rounded-xl border border-white/10 bg-black px-4 py-2.5 text-sm outline-none" />
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-white/40">Method</label>
+              <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)} className="mt-1 w-full rounded-xl border border-white/10 bg-black px-4 py-2.5 text-sm outline-none">
+                <option value="bank">Bank transfer</option>
+                <option value="upi">UPI</option>
+                <option value="cash">Cash</option>
+                <option value="card">Card</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-white/40">Reference / note (optional)</label>
+              <input value={payRef} onChange={(e) => setPayRef(e.target.value)} placeholder="UTR / txn id / note" className="mt-1 w-full rounded-xl border border-white/10 bg-black px-4 py-2.5 text-sm outline-none" />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setRecording(null)} className="flex-1 rounded-xl border border-white/10 py-2.5 text-[11px] uppercase tracking-wider text-white/60">Cancel</button>
+              <button onClick={submitPayment} disabled={payAmount <= 0} className="flex-1 rounded-xl bg-white py-2.5 text-[11px] uppercase tracking-wider text-black disabled:opacity-40">Record</button>
+            </div>
           </div>
         )}
       </Modal>

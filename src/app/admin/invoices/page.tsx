@@ -18,6 +18,7 @@ export default function InvoicesPage() {
   const [selected, setSelected] = useState<any | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ booking_ref: "", guest_name: "", items: "", subtotal: 0, tax: 0, total: 0 });
+  const [taxRate, setTaxRate] = useState(0.12);
   const { toast } = useToast();
 
   const fetchData = () => {
@@ -30,19 +31,40 @@ export default function InvoicesPage() {
 
   useEffect(() => { fetchData(); }, []);
 
+  useEffect(() => {
+    fetch("/api/admin?resource=settings", { headers: h() })
+      .then(r => r.json())
+      .then(s => {
+        const raw = parseFloat(s.tax_rate);
+        if (!isNaN(raw)) setTaxRate(raw / 100);
+      })
+      .catch(() => {});
+  }, []);
+
   const createInvoice = async () => {
     const items = form.items ? form.items.split("\n").filter(Boolean).map((line: string) => {
       const parts = line.split(",");
       return { description: parts[0]?.trim() || "", amount: parseInt(parts[1]) || 0, qty: parseInt(parts[2]) || 1 };
     }) : [];
     const subtotal = items.reduce((s: number, i: any) => s + i.amount * i.qty, 0);
-    const tax = Math.round(subtotal * 0.12);
+    const tax = Math.round(subtotal * taxRate);
     const total = subtotal + tax;
     const invNo = "INV-" + Date.now();
     await fetch("/api/admin", { method: "POST", headers: h(), body: JSON.stringify({ resource: "invoice", data: { booking_ref: form.booking_ref, invoice_no: invNo, guest_name: form.guest_name, items, subtotal, tax, total, currency: "INR" } }) });
     toast({ title: "Invoice created", message: invNo, type: "success" });
     setShowCreate(false); setForm({ booking_ref: "", guest_name: "", items: "", subtotal: 0, tax: 0, total: 0 });
     fetchData();
+  };
+
+  const prefillFromBooking = (bookingRef: string) => {
+    const b = bookings.find((x: any) => x.booking_ref === bookingRef);
+    if (!b) return;
+    const roomRate = Math.round((b.amount || 0) / Math.max(1, (b.nights || 1) * (b.units || 1)));
+    const lines = [
+      `${b.room_name || "Room"} × ${b.units} unit(s) × ${b.nights} night(s),${roomRate},${b.units * b.nights}`,
+    ];
+    if (b.meal_code) lines.push(`Meal plan (${b.meal_code}),0,1`);
+    setForm({ ...form, booking_ref: bookingRef, guest_name: b.guest_name, items: lines.join("\n") });
   };
 
   const updateStatus = async (id: number, status: string) => {
@@ -86,11 +108,14 @@ export default function InvoicesPage() {
       <Modal open={!!selected} onClose={() => setSelected(null)} title="Invoice Details">
         {selected && (
           <div className="space-y-4 text-sm">
-            <div className="grid grid-cols-2 gap-4">
-              <div><span className="text-[10px] uppercase tracking-wider text-white/40">Invoice</span><p className="mt-1 font-mono text-[#C8A86B]">{selected.invoice_no}</p></div>
-              <div><span className="text-[10px] uppercase tracking-wider text-white/40">Guest</span><p className="mt-1">{selected.guest_name}</p></div>
-              <div><span className="text-[10px] uppercase tracking-wider text-white/40">Booking</span><p className="mt-1">{selected.booking_ref}</p></div>
-              <div><span className="text-[10px] uppercase tracking-wider text-white/40">Amount</span><p className="mt-1">₹{selected.total?.toLocaleString()}</p></div>
+            <div className="flex items-center justify-between">
+              <div className="grid grid-cols-2 gap-4 flex-1">
+                <div><span className="text-[10px] uppercase tracking-wider text-white/40">Invoice</span><p className="mt-1 font-mono text-[#C8A86B]">{selected.invoice_no}</p></div>
+                <div><span className="text-[10px] uppercase tracking-wider text-white/40">Guest</span><p className="mt-1">{selected.guest_name}</p></div>
+                <div><span className="text-[10px] uppercase tracking-wider text-white/40">Booking</span><p className="mt-1">{selected.booking_ref}</p></div>
+                <div><span className="text-[10px] uppercase tracking-wider text-white/40">Amount</span><p className="mt-1">₹{selected.total?.toLocaleString()}</p></div>
+              </div>
+              <a href={`/api/invoices/${selected.id}/pdf`} target="_blank" rel="noopener" className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-[10px] uppercase tracking-wider text-white/80 hover:bg-white/10">Print / PDF</a>
             </div>
             {selected.items?.length > 0 && (
               <div className="border-t border-white/10 pt-4">
@@ -115,15 +140,16 @@ export default function InvoicesPage() {
       <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Create Invoice">
         <div className="space-y-4">
           <select value={form.booking_ref} onChange={(e) => {
-            const b = bookings.find((x: any) => x.booking_ref === e.target.value);
-            setForm({ ...form, booking_ref: e.target.value, guest_name: b?.guest_name || "" });
+            const v = e.target.value;
+            setForm({ ...form, booking_ref: v, guest_name: bookings.find((x: any) => x.booking_ref === v)?.guest_name || "" });
+            if (v) prefillFromBooking(v);
           }} className="w-full rounded-xl border border-white/10 bg-black px-4 py-2.5 text-sm outline-none">
             <option value="" className="bg-black">Select booking</option>
             {bookings.map((b: any) => <option key={b.booking_ref} value={b.booking_ref} className="bg-black">{b.booking_ref} — {b.guest_name}</option>)}
           </select>
           <input value={form.guest_name} onChange={(e) => setForm({ ...form, guest_name: e.target.value })} placeholder="Guest name" className="w-full rounded-xl border border-white/10 bg-black px-4 py-2.5 text-sm outline-none" />
           <div>
-            <span className="text-[10px] uppercase tracking-wider text-white/40">Items (one per line: description,amount,qty)</span>
+            <span className="text-[10px] uppercase tracking-wider text-white/40">Items (one per line: description,amount,qty) — Tax rate: {(taxRate * 100).toFixed(1)}%</span>
             <textarea value={form.items} onChange={(e) => setForm({ ...form, items: e.target.value })} rows={5} placeholder="Room charges,11500,1&#10;Meal plan,1800,2&#10;Airport transfer,1500,1" className="mt-1 w-full rounded-xl border border-white/10 bg-black px-4 py-2.5 text-sm outline-none resize-none font-mono" />
           </div>
           <div className="flex gap-3 pt-2">

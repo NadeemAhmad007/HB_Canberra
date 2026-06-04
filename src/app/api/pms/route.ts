@@ -12,6 +12,7 @@ import {
   replaceMealPlans,
   replacePropertyConfig,
   addActivityLog,
+  upsertGuestFromBooking,
 } from "@/lib/db";
 
 const FALLBACK_ROOMS = [
@@ -169,6 +170,11 @@ export async function POST(request: Request) {
     // Activity log
     try {
       await addActivityLog("booking_created", "booking", ref, `Booking created via website: ${guestName}`, "website");
+    } catch { }
+
+    // Upsert guest
+    try {
+      await upsertGuestFromBooking({ name: guestName, email, phone, amount_spent: amount || 0 });
     } catch { }
 
     // Send confirmation email async (non-blocking)

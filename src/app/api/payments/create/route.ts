@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getBankDetails } from "@/lib/payments";
-import { createBooking, getAvailableUnits, addActivityLog } from "@/lib/db";
+import { createBooking, getAvailableUnits, addActivityLog, upsertGuestFromBooking } from "@/lib/db";
 
 export async function POST(request: Request) {
   try {
@@ -57,6 +57,10 @@ export async function POST(request: Request) {
 
     try {
       await addActivityLog("booking_created", "booking", ref, `Booking created via website: ${guestName}`, "website");
+    } catch {}
+
+    try {
+      await upsertGuestFromBooking({ name: guestName, email, phone, amount_spent: amount || 0 });
     } catch {}
 
     // Send confirmation email with bank details (non-blocking)

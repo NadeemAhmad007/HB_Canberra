@@ -135,20 +135,34 @@ export async function replaceBlockedDates(dates: { room_id: number; date: string
 
 export async function getAllBookings() {
   const res = await query(
-    `SELECT id, booking_ref, guest_name, phone, email, room_id,
-            to_char(check_in, 'YYYY-MM-DD') AS check_in,
-            to_char(check_out, 'YYYY-MM-DD') AS check_out,
-            nights, adults, children, units, amount, currency, meal_code,
-            stripe_payment_intent, status, invoice_url, notes, tc_accepted,
-            to_char(checkin_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS checkin_at,
-            to_char(checkout_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS checkout_at,
-            id_proof,
-            payment_status, payment_gateway, payment_id,
-            to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
-            to_char(updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS updated_at
-       FROM bookings ORDER BY created_at DESC`
+    `SELECT b.id, b.booking_ref, b.guest_name, b.phone, b.email, b.room_id, r.name AS room_name,
+            to_char(b.check_in, 'YYYY-MM-DD') AS check_in,
+            to_char(b.check_out, 'YYYY-MM-DD') AS check_out,
+            b.nights, b.adults, b.children, b.units, b.amount, b.currency, b.meal_code,
+            b.stripe_payment_intent, b.status, b.invoice_url, b.notes, b.tc_accepted,
+            to_char(b.checkin_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS checkin_at,
+            to_char(b.checkout_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS checkout_at,
+            b.id_proof,
+            b.payment_status, b.payment_gateway, b.payment_id, b.amount_paid,
+            b.deposit_required, b.deposit_amount,
+            to_char(b.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
+            to_char(b.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS updated_at
+       FROM bookings b
+       LEFT JOIN rooms r ON r.id = b.room_id
+      ORDER BY b.created_at DESC`
   );
   return res.rows as any[];
+}
+
+export async function getBookingByRef(bookingRef: string) {
+  const res = await query(
+    `SELECT b.*, r.name AS room_name, r.base_price, r.units AS room_units
+       FROM bookings b
+       LEFT JOIN rooms r ON r.id = b.room_id
+      WHERE b.booking_ref = $1`,
+    [bookingRef]
+  );
+  return res.rows[0] as any || null;
 }
 
 export async function getBookingsInRange(from: string, to: string) {
@@ -392,6 +406,16 @@ export async function getInvoices() {
   return res.rows as any[];
 }
 
+export async function getInvoiceById(id: number) {
+  const res = await query("SELECT * FROM invoices WHERE id = $1", [id]);
+  return res.rows[0] as any || null;
+}
+
+export async function getInvoiceByBooking(bookingRef: string) {
+  const res = await query("SELECT * FROM invoices WHERE booking_ref = $1 LIMIT 1", [bookingRef]);
+  return res.rows[0] as any || null;
+}
+
 export async function createInvoice(data: {
   booking_ref: string;
   invoice_no: string;
@@ -416,4 +440,119 @@ export async function updateInvoiceStatus(id: number, status: string) {
     `UPDATE invoices SET status = $1, paid_at = CASE WHEN $1 = 'paid' THEN now() ELSE paid_at END WHERE id = $2`,
     [status, id]
   );
+}
+
+// ── Payments ───────────────────────────────────────────────────────────
+
+export async function recordPayment(data: {
+  booking_ref: string;
+  amount: number;
+  method?: string;
+  reference?: string;
+  notes?: string;
+  recorded_by?: string;
+}) {
+  const res = await query(
+    `INSERT INTO payments (booking_ref, amount, method, reference, notes, recorded_by)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    [
+      data.booking_ref,
+      data.amount,
+      data.method || "bank",
+      data.reference || "",
+      data.notes || "",
+      data.recorded_by || "admin",
+    ]
+  );
+  await query(
+    `UPDATE bookings SET amount_paid = COALESCE(amount_paid, 0) + $1, updated_at = now() WHERE booking_ref = $2`,
+    [data.amount, data.booking_ref]
+  );
+  return res.rows[0] as any;
+}
+
+export async function getPaymentsForBooking(bookingRef: string) {
+  const res = await query(
+    `SELECT id, amount, currency, method, reference, notes, recorded_by,
+            to_char(recorded_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS recorded_at
+       FROM payments WHERE booking_ref = $1 ORDER BY recorded_at DESC`,
+    [bookingRef]
+  );
+  return res.rows as any[];
+}
+
+export async function getTotalPaid(bookingRef: string) {
+  const res = await query(
+    `SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE booking_ref = $1`,
+    [bookingRef]
+  );
+  return parseInt(res.rows[0]?.total) || 0;
+}
+
+// ── Guests (auto-create from booking) ──────────────────────────────────
+
+export async function upsertGuestFromBooking(data: {
+  name: string;
+  email?: string;
+  phone?: string;
+  amount_spent?: number;
+}) {
+  const email = (data.email || "").trim().toLowerCase();
+  if (!email) return null;
+  await query(
+    `INSERT INTO guests (name, email, phone, total_stays, total_spend, last_stay)
+     VALUES ($1, $2, $3, 1, $4, CURRENT_DATE)
+     ON CONFLICT (email) DO UPDATE SET
+       name = EXCLUDED.name,
+       phone = COALESCE(NULLIF(EXCLUDED.phone, ''), guests.phone),
+       total_stays = guests.total_stays + 1,
+       total_spend = guests.total_spend + EXCLUDED.total_spend,
+       last_stay = CURRENT_DATE,
+       updated_at = now()`,
+    [data.name || "Guest", email, data.phone || "", data.amount_spent || 0]
+  );
+  const res = await query("SELECT * FROM guests WHERE email = $1", [email]);
+  return res.rows[0] as any || null;
+}
+
+// ── Email helpers ──────────────────────────────────────────────────────
+
+export async function getEmailTemplate(triggerEvent: string) {
+  const res = await query(
+    `SELECT * FROM email_templates WHERE trigger_event = $1 AND active = true LIMIT 1`,
+    [triggerEvent]
+  );
+  return res.rows[0] as any || null;
+}
+
+export async function getTaxRate(): Promise<number> {
+  const res = await query("SELECT value FROM settings WHERE key = 'tax_rate' LIMIT 1");
+  const raw = res.rows[0]?.value;
+  const n = raw ? parseFloat(raw) : 12;
+  return isNaN(n) ? 12 : n;
+}
+
+// ── State machine ──────────────────────────────────────────────────────
+
+const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+  pending:     ["confirmed", "cancelled"],
+  confirmed:   ["checked-in", "cancelled", "pending"],
+  "checked-in": ["checked-out"],
+  "checked-out": [],
+  cancelled:   ["pending"],
+};
+
+export function isValidStatusTransition(from: string, to: string): boolean {
+  if (from === to) return true;
+  return ALLOWED_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
+export async function transitionBookingStatus(bookingRef: string, to: string): Promise<{ ok: boolean; reason?: string; from?: string }> {
+  const res = await query("SELECT status FROM bookings WHERE booking_ref = $1", [bookingRef]);
+  if (res.rows.length === 0) return { ok: false, reason: "Booking not found" };
+  const from = res.rows[0].status;
+  if (!isValidStatusTransition(from, to)) {
+    return { ok: false, reason: `Cannot transition from ${from} to ${to}`, from };
+  }
+  return { ok: true, from };
 }

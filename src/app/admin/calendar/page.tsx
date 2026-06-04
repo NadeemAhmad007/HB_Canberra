@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Skeleton } from "@/components/admin/Skeleton";
 import { EmptyState } from "@/components/admin/Skeleton";
 import { Badge } from "@/components/admin/Badge";
+import { usePoll } from "@/lib/usePoll";
 
 const token = () => sessionStorage.getItem("admin_token") || "";
 const h = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token()}` });
@@ -37,10 +38,7 @@ export default function CalendarPage() {
 
   useEffect(() => { loadData(); }, []);
 
-  useEffect(() => {
-    const id = setInterval(loadData, 30000);
-    return () => clearInterval(id);
-  }, []);
+  usePoll(loadData, 60000, true);
 
   if (loading) return <Skeleton className="h-96 w-full" />;
   if (!Array.isArray(rooms) || !rooms.length) return <EmptyState title="No rooms" />;

@@ -42,11 +42,29 @@ export default function ReportsPage() {
   const adr = totalBookings > 0 ? Math.round(totalRevenue / totalBookings) : 0;
   const revpar = totalRooms > 0 ? Math.round(totalRevenue / (totalRooms * 12)) : 0;
 
+  const csvEscape = (v: any) => {
+    if (v === null || v === undefined) return "";
+    const s = String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+
   const exportCSV = (type: string) => {
-    const blob = new Blob([JSON.stringify(type === "revenue" ? revenueByMonth : bookings, null, 2)], { type: "application/json" });
+    let csv = "";
+    if (type === "revenue") {
+      const headers = ["Month", "Revenue (INR)", "Bookings"];
+      csv = headers.join(",") + "\n" + revenueByMonth.map(r => `${csvEscape(r.month)},${r.revenue},${r.bookings}`).join("\n");
+    } else {
+      const headers = ["Reference", "Guest", "Email", "Phone", "Room", "Check-in", "Check-out", "Nights", "Units", "Adults", "Children", "Amount", "Currency", "Status", "Payment", "Created"];
+      const rows = safeBookings.map((b: any) => [
+        b.booking_ref, b.guest_name, b.email, b.phone, b.room_name, b.check_in, b.check_out,
+        b.nights, b.units, b.adults, b.children, b.amount, b.currency, b.status, b.payment_status, b.created_at
+      ].map(csvEscape).join(","));
+      csv = headers.join(",") + "\n" + rows.join("\n");
+    }
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `${type}-report.json`;
+    a.download = `${type}-report.csv`;
     a.click();
     toast({ title: `${type} report exported`, type: "success" });
   };

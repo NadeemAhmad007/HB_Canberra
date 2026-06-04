@@ -6,6 +6,25 @@ import { usePathname } from "next/navigation";
 import { LayoutDashboard, CalendarDays, BookOpen, DoorOpen, DollarSign, Palmtree, Store, Users, BarChart3, Bell, Settings, ChevronLeft, Search, LogOut, Hotel, UserCheck, Sparkles, FileText, Activity, Mail, Shield } from "lucide-react";
 import clsx from "clsx";
 
+const ROLE_ACCESS: Record<string, string[]> = {
+  owner: [
+    "/admin", "/admin/bookings", "/admin/checkin", "/admin/calendar", "/admin/rooms",
+    "/admin/housekeeping", "/admin/rates", "/admin/seasons", "/admin/inventory",
+    "/admin/guests", "/admin/invoices", "/admin/reports", "/admin/users",
+    "/admin/activity", "/admin/email-templates", "/admin/notifications", "/admin/settings",
+  ],
+  reception: [
+    "/admin", "/admin/bookings", "/admin/checkin", "/admin/calendar", "/admin/rooms",
+    "/admin/inventory", "/admin/guests", "/admin/invoices", "/admin/activity",
+  ],
+  housekeeping: [
+    "/admin", "/admin/housekeeping", "/admin/calendar", "/admin/rooms",
+  ],
+  accountant: [
+    "/admin", "/admin/bookings", "/admin/invoices", "/admin/reports", "/admin/guests", "/admin/activity",
+  ],
+};
+
 const navItems = [
   { href: "/admin", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/admin/bookings", icon: BookOpen, label: "Bookings" },
@@ -26,13 +45,16 @@ const navItems = [
   { href: "/admin/settings", icon: Settings, label: "Settings" },
 ];
 
-export default function AdminShell({ children, token, onLogout }: { children: ReactNode; token: string; onLogout: () => void }) {
+export default function AdminShell({ children, token, user, onLogout }: { children: ReactNode; token: string; user?: { name?: string; role?: string } | null; onLogout: () => void }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
 
-  const shortBreadcrumb = navItems.find((n) => n.href === pathname)?.label || "Dashboard";
+  const role = user?.role || "owner";
+  const allowed = ROLE_ACCESS[role] || ROLE_ACCESS.owner;
+  const visibleNav = navItems.filter((n) => allowed.includes(n.href));
+  const shortBreadcrumb = visibleNav.find((n) => n.href === pathname)?.label || "Dashboard";
 
   return (
     <div className="flex h-screen bg-[#0A0D0C] text-white overflow-hidden">
@@ -59,7 +81,7 @@ export default function AdminShell({ children, token, onLogout }: { children: Re
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2 py-4 space-y-1">
-          {navItems.map((item) => {
+          {visibleNav.map((item) => {
             const active = pathname === item.href;
             return (
               <Link
@@ -97,6 +119,10 @@ export default function AdminShell({ children, token, onLogout }: { children: Re
             <span className="text-[10px] uppercase tracking-wider text-white/30">Admin / <span className="text-white/70">{shortBreadcrumb}</span></span>
           </div>
           <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-1.5">
+              <span className="text-[11px] text-white/70">{user?.name || "Admin"}</span>
+              <span className="rounded-full bg-[#C8A86B]/15 px-2 py-0.5 text-[9px] uppercase tracking-wider text-[#C8A86B]">{role}</span>
+            </div>
             <button onClick={() => setSearchOpen(!searchOpen)} className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 text-white/40 hover:text-white hover:bg-white/5">
               <Search className="h-4 w-4" />
             </button>

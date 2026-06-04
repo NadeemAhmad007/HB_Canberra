@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Skeleton } from "@/components/admin/Skeleton";
 import { EmptyState } from "@/components/admin/Skeleton";
 import { useToast } from "@/components/admin/Toast";
+import { usePoll } from "@/lib/usePoll";
 import { ChevronLeft, ChevronRight, Lock } from "lucide-react";
 
 const token = () => sessionStorage.getItem("admin_token") || "";
@@ -48,10 +49,7 @@ export default function InventoryPage() {
 
   useEffect(() => { fetchData(); }, []);
 
-  useEffect(() => {
-    const id = setInterval(fetchData, 30000);
-    return () => clearInterval(id);
-  }, []);
+  usePoll(fetchData, 60000, true);
 
   const safeBookings = Array.isArray(bookings) ? bookings : [];
   const safeBlocked = Array.isArray(blockedDates) ? blockedDates : [];

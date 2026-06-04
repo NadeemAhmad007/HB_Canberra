@@ -9,14 +9,21 @@ const PASSWORD_KEY = "admin_token";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState("");
+  const [user, setUser] = useState<{ name?: string; role?: string } | null>(null);
   const [checked, setChecked] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
     const saved = sessionStorage.getItem(PASSWORD_KEY);
+    const userJson = sessionStorage.getItem("admin_user");
     if (saved) {
       setToken(saved);
+      if (userJson) {
+        try { setUser(JSON.parse(userJson)); } catch { setUser({ name: "Admin", role: "owner" }); }
+      } else {
+        setUser({ name: "Admin", role: "owner" });
+      }
     } else if (pathname !== "/admin/login") {
       router.push("/admin/login");
     }
@@ -28,6 +35,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const handleLogout = () => {
     setToken("");
+    setUser(null);
     sessionStorage.removeItem(PASSWORD_KEY);
     sessionStorage.removeItem("admin_user");
     router.push("/admin/login");
@@ -36,7 +44,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <ToastProvider>
       {token ? (
-        <AdminShell token={token} onLogout={handleLogout}>
+        <AdminShell token={token} user={user} onLogout={handleLogout}>
           {children}
         </AdminShell>
       ) : (
