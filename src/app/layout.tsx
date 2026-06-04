@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import Script from "next/script";
 import "./globals.css";
 
 const SITE_URL = "https://houseboatcanberra.com";
@@ -119,16 +118,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className="h-full antialiased" data-scroll-behavior="smooth">
-      <head>
-        <Script
-          id="ld-json-hotel"
-          type="application/ld+json"
-          strategy="beforeInteractive"
-        >
-          {JSON.stringify(HOTEL_JSON_LD)}
-        </Script>
-      </head>
+    <html lang="en" className="h-full antialiased" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body className="min-h-full bg-[#0A0D0C] text-white">
         <a
           href="#main"
@@ -137,6 +127,11 @@ export default function RootLayout({
         >
           Skip to main content
         </a>
+        <script
+          id="ld-json-hotel"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(HOTEL_JSON_LD) }}
+        />
         {children}
       </body>
     </html>
