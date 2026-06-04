@@ -1,8 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { GoogleAnalytics } from "@/components/seo/GoogleAnalytics";
+import { JsonLd } from "@/components/seo/JsonLd";
 
 const SITE_URL = "https://houseboatcanberra.com";
 const OG_IMAGE = `${SITE_URL}/og.svg`;
+const PHONE = "+919149670483";
+const EMAIL = "Houseboat.canberra@gmail.com";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -19,15 +23,20 @@ export const metadata: Metadata = {
     "Houseboat Canberra",
     "Srinagar",
     "Dal Lake",
-    "luxury houseboat",
     "Kashmir",
+    "luxury houseboat Srinagar",
     "heritage houseboat",
     "Kashmiri hospitality",
-    "boutique stay",
+    "boutique stay Kashmir",
+    "Dal Lake accommodation",
+    "houseboat stay Srinagar",
   ],
   referrer: "origin-when-cross-origin",
   formatDetection: { email: false, address: false, telephone: false },
   alternates: { canonical: "/" },
+  verification: {
+    google: process.env.GOOGLE_SITE_VERIFICATION,
+  },
   openGraph: {
     title: "Houseboat Canberra · A Heritage Sanctuary on Dal Lake",
     description:
@@ -85,8 +94,8 @@ const HOTEL_JSON_LD = {
     "A heritage houseboat residence on Dal Lake in Srinagar, Kashmir — cedar-panelled suites, hand-knotted carpets, family-run.",
   url: SITE_URL,
   image: OG_IMAGE,
-  telephone: "+49 176 84005474",
-  email: "Houseboat.canberra@gmail.com",
+  telephone: PHONE,
+  email: EMAIL,
   priceRange: "₹₹₹",
   address: {
     "@type": "PostalAddress",
@@ -112,6 +121,43 @@ const HOTEL_JSON_LD = {
   petsAllowed: false,
   checkinTime: "14:00",
   checkoutTime: "11:00",
+  potentialAction: {
+    "@type": "ReserveAction",
+    target: {
+      "@type": "EntryPoint",
+      urlTemplate: `${SITE_URL}/booking`,
+    },
+    result: {
+      "@type": "LodgingReservation",
+      name: "Book a stay at Houseboat Canberra",
+    },
+  },
+};
+
+const ORGANIZATION_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "Houseboat Canberra",
+  url: SITE_URL,
+  logo: `${SITE_URL}/HB_Logo_No_BG.png`,
+  contactPoint: [
+    {
+      "@type": "ContactPoint",
+      telephone: PHONE,
+      contactType: "reservations",
+      email: EMAIL,
+      availableLanguage: ["English", "Hindi", "Urdu"],
+    },
+  ],
+};
+
+const WEBSITE_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "Houseboat Canberra",
+  url: SITE_URL,
+  inLanguage: "en-IN",
+  publisher: { "@type": "Organization", name: "Houseboat Canberra", url: SITE_URL },
 };
 
 export default function RootLayout({
@@ -128,11 +174,10 @@ export default function RootLayout({
         >
           Skip to main content
         </a>
-        <script
-          id="ld-json-hotel"
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(HOTEL_JSON_LD) }}
-        />
+        <JsonLd data={HOTEL_JSON_LD} id="ld-json-hotel" />
+        <JsonLd data={ORGANIZATION_JSON_LD} id="ld-json-org" />
+        <JsonLd data={WEBSITE_JSON_LD} id="ld-json-website" />
+        <GoogleAnalytics />
         {children}
       </body>
     </html>

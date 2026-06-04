@@ -1,5 +1,12 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { BrandMark } from "@/components/BrandMark";
+
+export const metadata: Metadata = {
+  title: "Page Not Found",
+  description: "The page you were looking for has drifted. Return to the lake.",
+  robots: { index: false, follow: false },
+};
 
 /**
  * Premium 404. Same language as the rest of the site — "a quiet lake", "the path

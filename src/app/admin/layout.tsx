@@ -43,6 +43,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <ToastProvider>
+      <meta name="robots" content="noindex,nofollow" />
       {token ? (
         <AdminShell token={token} user={user} onLogout={handleLogout}>
           {children}
