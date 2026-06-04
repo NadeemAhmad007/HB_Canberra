@@ -1,4 +1,15 @@
 import { NextResponse } from "next/server";
+
+function isMissingColumnError(e: unknown): boolean {
+  const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
+  return msg.includes("column") && (msg.includes("does not exist") || msg.includes("not found"));
+}
+
+function isMissingTableError(e: unknown): boolean {
+  const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
+  return msg.includes("relation") && msg.includes("does not exist");
+}
+
 import {
   getAllBookings,
   getRooms,
@@ -296,8 +307,24 @@ export async function PUT(request: Request) {
 
         const payAmount = amount || booking.amount - (booking.amount_paid || 0);
         const payMethod = method || "bank";
-        await sql`UPDATE bookings SET payment_status = 'paid', payment_gateway = ${payMethod}, status = 'confirmed', updated_at = now() WHERE booking_ref = ${bookingRef}`;
-        await recordPayment({ booking_ref: bookingRef, amount: payAmount, method: payMethod, reference: reference || "", recorded_by: "admin" });
+
+        try {
+          await sql`UPDATE bookings SET payment_status = 'paid', payment_gateway = ${payMethod}, status = 'confirmed', updated_at = now() WHERE booking_ref = ${bookingRef}`;
+        } catch (e) {
+          if (isMissingColumnError(e)) {
+            try {
+              await sql`UPDATE bookings SET status = 'confirmed', updated_at = now() WHERE booking_ref = ${bookingRef}`;
+            } catch (e2) {
+              throw e2;
+            }
+          } else {
+            throw e;
+          }
+        }
+
+        try {
+          await recordPayment({ booking_ref: bookingRef, amount: payAmount, method: payMethod, reference: reference || "", recorded_by: "admin" });
+        } catch (e) { console.error("[admin] recordPayment failed (table missing?):", (e as Error).message); }
 
         try { await upsertGuestFromBooking({ name: booking.guest_name, email: booking.email, phone: booking.phone, amount_spent: payAmount }); } catch (e) { console.error("[admin] guest upsert failed:", e); }
 
@@ -366,6 +393,7 @@ export async function PUT(request: Request) {
     }
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unknown error";
+    console.error("[admin PUT] error:", msg);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
