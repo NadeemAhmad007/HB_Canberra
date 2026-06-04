@@ -134,35 +134,70 @@ export async function replaceBlockedDates(dates: { room_id: number; date: string
 // ── Bookings ───────────────────────────────────────────────────────────
 
 export async function getAllBookings() {
-  const res = await query(
-    `SELECT b.id, b.booking_ref, b.guest_name, b.phone, b.email, b.room_id, r.name AS room_name,
-            to_char(b.check_in, 'YYYY-MM-DD') AS check_in,
-            to_char(b.check_out, 'YYYY-MM-DD') AS check_out,
-            b.nights, b.adults, b.children, b.units, b.amount, b.currency, b.meal_code,
-            b.stripe_payment_intent, b.status, b.invoice_url, b.notes, b.tc_accepted,
-            to_char(b.checkin_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS checkin_at,
-            to_char(b.checkout_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS checkout_at,
-            b.id_proof,
-            b.payment_status, b.payment_gateway, b.payment_id, b.amount_paid,
-            b.deposit_required, b.deposit_amount,
-            to_char(b.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
-            to_char(b.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS updated_at
-       FROM bookings b
-       LEFT JOIN rooms r ON r.id = b.room_id
-      ORDER BY b.created_at DESC`
-  );
-  return res.rows as any[];
+  try {
+    const res = await query(
+      `SELECT b.id, b.booking_ref, b.guest_name, b.phone, b.email, b.room_id, r.name AS room_name,
+              to_char(b.check_in, 'YYYY-MM-DD') AS check_in,
+              to_char(b.check_out, 'YYYY-MM-DD') AS check_out,
+              b.nights, b.adults, b.children, b.units, b.amount, b.currency, b.meal_code,
+              b.stripe_payment_intent, b.status, b.invoice_url, b.notes, b.tc_accepted,
+              to_char(b.checkin_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS checkin_at,
+              to_char(b.checkout_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS checkout_at,
+              b.id_proof,
+              b.payment_status, b.payment_gateway, b.payment_id, b.amount_paid,
+              b.deposit_required, b.deposit_amount,
+              to_char(b.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
+              to_char(b.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS updated_at
+         FROM bookings b
+         LEFT JOIN rooms r ON r.id = b.room_id
+        ORDER BY b.created_at DESC`
+    );
+    return res.rows as any[];
+  } catch (e: any) {
+    if (!/amount_paid|payment_status|payment_gateway|payment_id|deposit_required|deposit_amount|room_name/i.test(e?.message || "")) throw e;
+    const res = await query(
+      `SELECT id, booking_ref, guest_name, phone, email, room_id,
+              to_char(check_in, 'YYYY-MM-DD') AS check_in,
+              to_char(check_out, 'YYYY-MM-DD') AS check_out,
+              nights, adults, children, units, amount, currency, meal_code,
+              stripe_payment_intent, status, invoice_url, notes, tc_accepted,
+              to_char(checkin_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS checkin_at,
+              to_char(checkout_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS checkout_at,
+              id_proof,
+              'pending' AS payment_status, '' AS payment_gateway, '' AS payment_id, 0 AS amount_paid,
+              false AS deposit_required, 0 AS deposit_amount,
+              to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
+              to_char(updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS updated_at
+         FROM bookings ORDER BY created_at DESC`
+    );
+    return res.rows as any[];
+  }
 }
 
 export async function getBookingByRef(bookingRef: string) {
-  const res = await query(
-    `SELECT b.*, r.name AS room_name, r.base_price, r.units AS room_units
-       FROM bookings b
-       LEFT JOIN rooms r ON r.id = b.room_id
-      WHERE b.booking_ref = $1`,
-    [bookingRef]
-  );
-  return res.rows[0] as any || null;
+  try {
+    const res = await query(
+      `SELECT b.id, b.booking_ref, b.guest_name, b.phone, b.email, b.room_id, b.meal_code,
+              b.adults, b.children, b.units, b.check_in, b.check_out, b.nights,
+              b.amount, b.currency, b.stripe_payment_intent, b.status, b.invoice_url, b.notes, b.tc_accepted,
+              b.checkin_at, b.checkout_at, b.id_proof,
+              b.payment_status, b.payment_gateway, b.payment_id, b.amount_paid,
+              b.deposit_required, b.deposit_amount,
+              b.created_at, b.updated_at,
+              r.name AS room_name, r.base_price, r.units AS room_units
+         FROM bookings b
+         LEFT JOIN rooms r ON r.id = b.room_id
+        WHERE b.booking_ref = $1`,
+      [bookingRef]
+    );
+    return res.rows[0] as any || null;
+  } catch (e: any) {
+    const res = await query(
+      `SELECT *, NULL AS room_name, NULL AS base_price, NULL AS room_units FROM bookings WHERE booking_ref = $1`,
+      [bookingRef]
+    );
+    return res.rows[0] as any || null;
+  }
 }
 
 export async function getBookingsInRange(from: string, to: string) {
