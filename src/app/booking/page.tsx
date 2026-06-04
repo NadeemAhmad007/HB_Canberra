@@ -31,6 +31,31 @@ export default function BookingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const validEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+  const validPhone = (v: string) => /^[\d\s\-\+\(\)]{7,20}$/.test(v) && /\d{7,}/.test(v.replace(/\D/g, ""));
+  const validName = (v: string) => v.trim().length >= 2;
+
+  const validate = () => {
+    const errs: Record<string, string> = {};
+    if (!validName(guestName)) errs.guestName = "Enter your full name";
+    if (!validPhone(phone)) errs.phone = "Enter a valid phone number";
+    if (!validEmail(email)) errs.email = "Enter a valid email address";
+    if (!checkIn) errs.checkIn = "Select check-in date";
+    if (!checkOut) errs.checkOut = "Select check-out date";
+    if (!tcAccepted) errs.tcAccepted = "Accept the terms to proceed";
+    setFieldErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const clearErr = (field: string) => {
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
   const [availData, setAvailData] = useState<Record<string, { blocked: string[]; bookings: any[]; totalUnits: number }>>({});
 
   useEffect(() => { fetchPms(); }, [fetchPms]);
@@ -109,7 +134,7 @@ export default function BookingPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRoom) return;
-    if (!tcAccepted) { setError("Please accept the terms & conditions"); return; }
+    if (!validate()) return;
     if (units > (selectedRoom.availableUnits ?? selectedRoom.units)) {
       setError("Not enough units available for selected dates");
       return;
@@ -303,14 +328,32 @@ export default function BookingPage() {
 
                 {/* Guest details */}
                 <div className="grid gap-5 sm:grid-cols-3">
-                  <Field label="Your name">
-                    <input type="text" value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Full name" required className="booking-input" />
+                  <Field label="Your name" error={fieldErrors.guestName}>
+                    <input
+                      type="text"
+                      value={guestName}
+                      onChange={(e) => { setGuestName(e.target.value); clearErr("guestName"); }}
+                      placeholder="Full name"
+                      className={`booking-input ${fieldErrors.guestName ? "border-rose-400/50" : ""}`}
+                    />
                   </Field>
-                  <Field label="Phone">
-                    <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 98765 43210" required className="booking-input" />
+                  <Field label="Phone" error={fieldErrors.phone}>
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => { setPhone(e.target.value); clearErr("phone"); }}
+                      placeholder="+91 98765 43210"
+                      className={`booking-input ${fieldErrors.phone ? "border-rose-400/50" : ""}`}
+                    />
                   </Field>
-                  <Field label="Email">
-                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required className="booking-input" />
+                  <Field label="Email" error={fieldErrors.email}>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => { setEmail(e.target.value); clearErr("email"); }}
+                      placeholder="you@example.com"
+                      className={`booking-input ${fieldErrors.email ? "border-rose-400/50" : ""}`}
+                    />
                   </Field>
                 </div>
 
@@ -414,16 +457,33 @@ export default function BookingPage() {
                 </div>
 
                 {/* T&C */}
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input type="checkbox" checked={tcAccepted} onChange={(e) => setTcAccepted(e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-white/20 bg-white/[0.03] accent-[#C8A86B]" />
-                  <span className="text-[12px] text-white/60 leading-relaxed">
-                    I accept the <span className="text-[#C8A86B] underline">terms & conditions</span> and cancellation policy.
-                  </span>
-                </label>
+                <div>
+                  <label className={`flex items-start gap-3 cursor-pointer ${fieldErrors.tcAccepted ? "opacity-100" : ""}`}>
+                    <input
+                      type="checkbox"
+                      checked={tcAccepted}
+                      onChange={(e) => { setTcAccepted(e.target.checked); clearErr("tcAccepted"); }}
+                      className={`mt-0.5 h-4 w-4 rounded border-white/20 bg-white/[0.03] accent-[#C8A86B] ${fieldErrors.tcAccepted ? "ring-1 ring-rose-400/50" : ""}`}
+                    />
+                    <span className="text-[12px] text-white/60 leading-relaxed">
+                      I accept the <span className="text-[#C8A86B] underline">terms & conditions</span> and cancellation policy.
+                    </span>
+                  </label>
+                  {fieldErrors.tcAccepted && (
+                    <p className="mt-1 ml-7 text-[10px] text-rose-300/90 flex items-center gap-1">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3 w-3 shrink-0"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h0"/></svg>
+                      {fieldErrors.tcAccepted}
+                    </p>
+                  )}
+                </div>
 
                 {error && <p className="text-sm text-rose-300">{error}</p>}
 
-                <button type="submit" disabled={submitting} className="group relative w-full overflow-hidden rounded-full bg-white py-4 text-[11px] uppercase tracking-[0.4em] text-black disabled:opacity-50" style={{ fontFamily: "var(--font-display)" }}>
+                <button
+                  type="submit"
+                  disabled={submitting || Object.keys(fieldErrors).length > 0}
+                  className="group relative w-full overflow-hidden rounded-full bg-white py-4 text-[11px] uppercase tracking-[0.4em] text-black disabled:opacity-50" style={{ fontFamily: "var(--font-display)" }}
+                >
                   <span className="relative z-10 transition-colors group-hover:text-white">{submitting ? "Submitting..." : "Confirm Reservation"}</span>
                   <span className="absolute inset-0 -translate-x-full bg-[#C8A86B] transition-transform duration-500 group-hover:translate-x-0" />
                 </button>
@@ -476,11 +536,17 @@ export default function BookingPage() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, error }: { label: string; children: React.ReactNode; error?: string }) {
   return (
     <label className="block">
       <span className="text-[10px] uppercase tracking-[0.35em] text-white/50" style={{ fontFamily: "var(--font-display)" }}>{label}</span>
       <div className="mt-2">{children}</div>
+      {error && (
+        <p className="mt-1.5 text-[10px] text-rose-300/90 flex items-center gap-1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3 w-3 shrink-0"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h0"/></svg>
+          {error}
+        </p>
+      )}
     </label>
   );
 }
