@@ -2,12 +2,12 @@
 
 import { useStore } from "@/store/useStore";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { BrandMark } from "./BrandMark";
 
 /** Top-of-page luxury navigation. Hides on scroll-down, reveals on scroll-up. */
 export function Navigation() {
   const hotel = useStore((s) => s.hotel);
-  const toggleBooking = useStore((s) => s.toggleBooking);
   const toggleSound = useStore((s) => s.toggleSound);
   const soundEnabled = useStore((s) => s.soundEnabled);
   const freeLook = useStore((s) => s.freeLook);
@@ -89,14 +89,14 @@ export function Navigation() {
           >
             {soundEnabled ? <SoundOnIcon /> : <SoundOffIcon />}
           </button>
-          <button
-            onClick={() => toggleBooking()}
+          <Link
+            href="/booking"
             className="group relative overflow-hidden rounded-full border border-white/30 px-5 py-2 text-[11px] tracking-[0.3em] uppercase text-white"
             style={{ fontFamily: "var(--font-display)" }}
           >
             <span className="relative z-10 transition-colors duration-500 group-hover:text-black">Reserve</span>
             <span className="absolute inset-0 -translate-x-full bg-white transition-transform duration-500 group-hover:translate-x-0" />
-          </button>
+          </Link>
         </div>
       </div>
     </header>
