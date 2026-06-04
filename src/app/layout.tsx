@@ -118,7 +118,8 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className="h-full antialiased" data-scroll-behavior="smooth" suppressHydrationWarning>
+    <html lang="en" className="h-full antialiased" data-scroll-behavior="smooth">
+      <head suppressHydrationWarning />
       <body className="min-h-full bg-[#0A0D0C] text-white">
         <a
           href="#main"
