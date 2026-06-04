@@ -82,10 +82,14 @@ export default function BookingsPage() {
   const markAsPaid = async (ref: string) => {
     try {
       const res = await fetch("/api/admin", { method: "PUT", headers: h(), body: JSON.stringify({ resource: "mark-paid", data: { bookingRef: ref } }) });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) {
+        const body = await res.text();
+        toast({ title: "Failed", message: `${res.status}: ${body.slice(0, 200)}`, type: "error" });
+        return;
+      }
       toast({ title: "Marked as paid", message: ref, type: "success" });
-    } catch {
-      toast({ title: "Failed", message: "Could not mark as paid", type: "error" });
+    } catch (e) {
+      toast({ title: "Failed", message: e instanceof Error ? e.message : "Could not mark as paid", type: "error" });
     }
     fetchData();
   };
