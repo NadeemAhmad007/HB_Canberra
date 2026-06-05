@@ -39,7 +39,11 @@ export default function SettingsPage() {
     Promise.all([
       fetch("/api/admin?resource=property", { headers: h() }).then((r) => r.json()).catch(() => ({})),
       fetch("/api/admin?resource=settings", { headers: h() }).then((r) => r.json()).catch(() => ({})),
-    ]).then(([p, s]) => setData({ ...p, ...s })).catch(() => {}).finally(() => setLoading(false));
+    ]).then(([p, s]) => {
+      const normalized: Record<string, string> = {};
+      for (const [k, v] of Object.entries(p)) normalized[k.toLowerCase()] = v as string;
+      setData({ ...normalized, ...s });
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const save = async () => {
@@ -49,7 +53,7 @@ export default function SettingsPage() {
     const paymentKeys = PAYMENT_FIELDS.map((f) => f.key);
     [...GENERAL_FIELDS, ...PAYMENT_FIELDS].forEach((f) => {
       if (["hotel_name", "hotel_address", "hotel_email", "hotel_phone", "tax_rate", "currency"].includes(f.key)) {
-        propertyData[f.key.toUpperCase()] = data[f.key.toUpperCase()] || "";
+        propertyData[f.key.toUpperCase()] = data[f.key] || "";
       } else {
         settingsData[f.key] = data[f.key] || "";
       }
