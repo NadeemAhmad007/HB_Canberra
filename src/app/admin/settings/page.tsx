@@ -59,12 +59,31 @@ export default function SettingsPage() {
       }
     });
 
-    await Promise.all([
+    const [propRes, settRes] = await Promise.all([
       fetch("/api/admin", { method: "PUT", headers: h(), body: JSON.stringify({ resource: "property", data: propertyData }) }),
       fetch("/api/admin/settings", { method: "PUT", headers: h(), body: JSON.stringify(settingsData) }),
     ]);
+
+    if (!propRes.ok || !settRes.ok) {
+      toast({ title: "Save failed — check console for details", type: "error" });
+      const errs = [];
+      if (!propRes.ok) errs.push(`property: ${propRes.status} ${await propRes.text()}`);
+      if (!settRes.ok) errs.push(`settings: ${settRes.status} ${await settRes.text()}`);
+      console.error("[settings] save errors:", errs);
+      setSaving(false);
+      return;
+    }
+
     toast({ title: "Settings saved", type: "success" });
     setSaving(false);
+    // Re-fetch to confirm persisted values
+    const [p, s] = await Promise.all([
+      fetch("/api/admin?resource=property", { headers: h() }).then((r) => r.json()).catch(() => ({})),
+      fetch("/api/admin?resource=settings", { headers: h() }).then((r) => r.json()).catch(() => ({})),
+    ]);
+    const normalized: Record<string, string> = {};
+    for (const [k, v] of Object.entries(p)) normalized[k.toLowerCase()] = v as string;
+    setData({ ...normalized, ...s });
   };
 
   if (loading) return <Skeleton className="h-96 w-full" />;
