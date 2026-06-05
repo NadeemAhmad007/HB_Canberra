@@ -182,6 +182,16 @@ const WEBSITE_JSON_LD = {
   publisher: { "@type": "Organization", name: "Houseboat Canberra", url: SITE_URL },
 };
 
+const BREADCRUMB_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
+    { "@type": "ListItem", position: 2, name: "Book a Stay", item: `${SITE_URL}/booking` },
+    { "@type": "ListItem", position: 3, name: "FAQ", item: `${SITE_URL}/faq` },
+  ],
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -199,6 +209,7 @@ export default function RootLayout({
         <JsonLd data={HOTEL_JSON_LD} id="ld-json-hotel" />
         <JsonLd data={ORGANIZATION_JSON_LD} id="ld-json-org" />
         <JsonLd data={WEBSITE_JSON_LD} id="ld-json-website" />
+        <JsonLd data={BREADCRUMB_JSON_LD} id="ld-json-breadcrumb" />
         <GoogleAnalytics />
         {children}
       </body>

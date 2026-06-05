@@ -95,6 +95,28 @@ export function Footer() {
             </ul>
           </div>
 
+          {/* Quick Links */}
+          <div>
+            <div
+              className="text-[10px] uppercase tracking-[0.4em] text-white/45"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              Quick Links
+            </div>
+            <ul className="mt-3 space-y-1.5">
+              <li>
+                <a href="/booking" className="text-sm text-white/80 transition-colors hover:text-[#C8A86B]" style={{ fontFamily: "var(--font-body)" }}>
+                  Book a Stay →
+                </a>
+              </li>
+              <li>
+                <a href="/faq" className="text-sm text-white/80 transition-colors hover:text-[#C8A86B]" style={{ fontFamily: "var(--font-body)" }}>
+                  FAQ →
+                </a>
+              </li>
+            </ul>
+          </div>
+
           {/* WhatsApp QR (rendered live from the phone number — no image file needed) */}
           <div>
             <div
