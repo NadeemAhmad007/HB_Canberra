@@ -242,12 +242,13 @@ export const hotel: Hotel = {
       camera: cam(0.20, 60, 0),
       theme: "light",
       headline: "Quiet. Warmth. The sound of water.",
-      body: "A small spa on the upper deck — massages with mustard oil, a cedar sauna, and outdoor yoga at sunrise.",
+      body: "A small spa on the upper deck — massages with mustard oil, outdoor yoga at sunrise, and easy access to scenic waterfront walks and nature trails.",
       hotspots: [],
       amenities: [
         { id: "massage", title: "Kashmiri Massage", description: "Mustard oil and slow hands.", icon: "hand", highlightIn: ["spa"] },
-        { id: "sauna", title: "Cedar Sauna", description: "Single-occupancy cedar cabin.", icon: "flame", highlightIn: ["spa"] },
         { id: "yoga", title: "Sunrise Yoga", description: "On the upper deck, 6am.", icon: "leaf", highlightIn: ["spa"] },
+        { id: "walks", title: "Scenic Waterfront Walks", description: "Quiet paths along the lake.", icon: "wave", highlightIn: ["spa"] },
+        { id: "trails", title: "Nature & Hiking Trails", description: "Forested trails a short drive away.", icon: "mountain", highlightIn: ["spa"] },
       ],
     },
     {

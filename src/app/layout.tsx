@@ -78,10 +78,9 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/favicon.svg", type: "image/svg+xml" },
-      { url: "/favicon.ico" },
+      { url: "/HB_Logo.png", type: "image/png", sizes: "any" },
     ],
-    apple: "/favicon.svg",
+    apple: "/HB_Logo.png",
   },
   manifest: "/manifest.json",
 };

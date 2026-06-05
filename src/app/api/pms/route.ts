@@ -14,6 +14,7 @@ import {
   addActivityLog,
   upsertGuestFromBooking,
 } from "@/lib/db";
+import { notifyAdminNewBooking } from "@/lib/notify";
 
 const FALLBACK_ROOMS = [
   { id: 1, name: "Deluxe Room", description: "Elegant lake-view room with handcrafted Kashmiri furnishings, overlooking the pristine waters of Dal Lake.", amenities: ["Lake View", "King Bed", "Ensuite Bathroom", "Heating", "Mini Bar", "WiFi", "Tea/Coffee Maker"], units: 2, base_price: 11500, max_adults: 2, max_children: 2, child_policy: "1 child above 10, 2 children below 10", active: true, status: "available", tour_url: "https://tour.panoee.net/iframe/690596e5eac32b09e73f0ee0" },
@@ -175,6 +176,25 @@ export async function POST(request: Request) {
     // Upsert guest
     try {
       await upsertGuestFromBooking({ name: guestName, email, phone, amount_spent: amount || 0 });
+    } catch { }
+
+    // Notify admin (in-app + email). Non-blocking, errors swallowed.
+    try {
+      const rooms = await getRooms().catch(() => []);
+      const roomName = (rooms as any[]).find((r: any) => r.id === roomIdNum)?.name || "Selected Room";
+      await notifyAdminNewBooking({
+        ref,
+        guestName: guestName || "Guest",
+        guestEmail: email,
+        guestPhone: phone,
+        roomName,
+        checkIn,
+        checkOut,
+        nights: nights || 1,
+        amount: amount || 0,
+        currency: "INR",
+        source: "website",
+      });
     } catch { }
 
     // Send confirmation email async (non-blocking)

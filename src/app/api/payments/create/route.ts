@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getBankDetails } from "@/lib/payments";
 import { createBooking, getAvailableUnits, addActivityLog, upsertGuestFromBooking } from "@/lib/db";
+import { notifyAdminNewBooking } from "@/lib/notify";
 
 export async function POST(request: Request) {
   try {
@@ -61,6 +62,25 @@ export async function POST(request: Request) {
 
     try {
       await upsertGuestFromBooking({ name: guestName, email, phone, amount_spent: amount || 0 });
+    } catch {}
+
+    // Notify admin (in-app + email). Non-blocking, errors swallowed.
+    try {
+      const rooms = await (await import("@/lib/db")).getRooms().catch(() => []);
+      const roomName = (rooms as any[]).find((r: any) => r.id === roomIdNum)?.name || "Selected Room";
+      await notifyAdminNewBooking({
+        ref,
+        guestName,
+        guestEmail: email,
+        guestPhone: phone,
+        roomName,
+        checkIn,
+        checkOut,
+        nights: nights || 1,
+        amount: amount || 0,
+        currency: currencyCode,
+        source: "website",
+      });
     } catch {}
 
     // Send confirmation email with bank details (non-blocking)

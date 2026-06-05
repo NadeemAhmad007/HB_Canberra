@@ -88,6 +88,8 @@ function AmenityIcon({ name }: { name: string }) {
     hand: <path d="M6 14V6a2 2 0 014 0v6M10 10V4a2 2 0 014 0v8M14 10V6a2 2 0 014 0v10c0 4-3 7-7 7s-7-3-7-7v-3" />,
     flame: <path d="M12 2c0 6-6 8-6 14a6 6 0 0012 0c0-6-6-8-6-14z" />,
     leaf: <path d="M5 21c10 0 16-6 16-16C11 5 5 11 5 21zM5 21l8-8" />,
+    wave: <path d="M2 12c2 0 2-2 5-2s3 2 5 2 2-2 5-2 3 2 5 2M2 18c2 0 2-2 5-2s3 2 5 2 2-2 5-2 3 2 5 2" />,
+    mountain: <path d="M3 20l6-10 4 6 3-4 5 8H3zM9 8a2 2 0 100-4 2 2 0 000 4z" />,
   };
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="#C8A86B" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">

@@ -49,6 +49,7 @@ import {
 } from "@/lib/db";
 import { applyTemplate, sendEmail, settingsFromMap } from "@/lib/email";
 import { neon } from "@neondatabase/serverless";
+import { notifyAdminNewBooking } from "@/lib/notify";
 
 function getSql() {
   const url = process.env.DATABASE_URL;
@@ -412,6 +413,24 @@ export async function POST(request: Request) {
     const body = await request.json();
     if (body.resource === "booking") {
       const b = await createBooking(body.data);
+      try {
+        const d = body.data || {};
+        const rooms = await getRooms().catch(() => []);
+        const roomName = (rooms as any[]).find((r: any) => r.id === d.room_id)?.name || "Room";
+        await notifyAdminNewBooking({
+          ref: b.booking_ref || d.booking_ref || "—",
+          guestName: d.guest_name || "Guest",
+          guestEmail: d.email,
+          guestPhone: d.phone,
+          roomName,
+          checkIn: d.check_in,
+          checkOut: d.check_out,
+          nights: d.nights,
+          amount: d.amount,
+          currency: d.currency,
+          source: "admin",
+        });
+      } catch (e) { console.error("[admin] booking notify failed:", e instanceof Error ? e.message : e); }
       return NextResponse.json(b);
     }
     if (body.resource === "user") {
