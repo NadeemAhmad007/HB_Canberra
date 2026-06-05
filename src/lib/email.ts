@@ -28,7 +28,7 @@ export async function sendEmail(opts: {
     if (opts.attachments?.length) {
       payload.attachments = opts.attachments.map((a) => ({
         filename: a.filename,
-        content: a.content,
+        content: a.content.toString("base64"),
       }));
     }
     const res = await client().emails.send(payload);
@@ -79,7 +79,7 @@ export function brandedEmailHtml(bodyHtml: string, vars: {
 <style>
   @media only screen and (max-width:600px){
     .container{width:100%!important;padding:20px 16px!important}
-    .logo{width:80px!important;height:80px!important}
+    .logo{width:120px!important;height:120px!important}
     .footer-grid{grid-template-columns:1fr!important}
     h1{font-size:18px!important}
   }
@@ -92,7 +92,7 @@ export function brandedEmailHtml(bodyHtml: string, vars: {
 
   <!-- Logo + Name -->
   <tr><td style="padding:36px 40px 20px;text-align:center">
-    <img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(name)}" width="120" height="120" style="width:120px;height:120px;border-radius:50%;display:block;margin:0 auto 12px">
+    <img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(name)}" width="180" height="180" style="width:180px;height:180px;border-radius:50%;display:block;margin:0 auto 12px">
     <div style="font-size:15px;letter-spacing:4px;text-transform:uppercase;color:#C8A86B;font-weight:400">${escapeHtml(name)}</div>
     <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.35);margin-top:4px">Luxury Afloat — Dal Lake</div>
   </td></tr>

@@ -481,7 +481,7 @@ export async function PUT(request: Request) {
             const info = settingsFromMap(settings);
             if (template) {
               const settingRows = await getSettings();
-              const address = settingRows.hotel_address || "Gate no 13, Dal Lake Boulevard Road, Srinagar, 190001, Jammu & Kashmir, India";
+              const address = settingRows.hotel_address || "Gate no 13, Dal Lake Boulevard Road, Srinagar, 190001, Jammu and Kashmir, India";
               const vars: Record<string, string> = {
                 guest_name: booking.guest_name,
                 booking_ref: booking.booking_ref,
