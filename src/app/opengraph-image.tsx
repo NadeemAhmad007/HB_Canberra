@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import sharp from "sharp";
 
 export const alt =
   "Houseboat Canberra · A heritage sanctuary on Dal Lake, Srinagar";
@@ -10,14 +11,20 @@ export const contentType = "image/png";
 export const dynamic = "force-static";
 
 export default async function Image() {
-  // Background — deck view facing mountains, resized to 1200×630
+  // Background — deck view, resized small enough for Satori's 500KB limit
   const bgPath = join(process.cwd(), "public", "og-bg.jpg");
-  const bgBuf = await readFile(bgPath);
+  const bgBuf = await sharp(await readFile(bgPath))
+    .resize(1200, 630)
+    .jpeg({ quality: 70 })
+    .toBuffer();
   const bgDataUrl = `data:image/jpeg;base64,${bgBuf.toString("base64")}`;
 
   // Logo
   const logoPath = join(process.cwd(), "public", "HB_Logo_No_BG.png");
-  const logoBuf = await readFile(logoPath);
+  const logoBuf = await sharp(await readFile(logoPath))
+    .resize({ width: 240, withoutEnlargement: true })
+    .png({ compressionLevel: 9 })
+    .toBuffer();
   const logoDataUrl = `data:image/png;base64,${logoBuf.toString("base64")}`;
 
   return new ImageResponse(
@@ -30,29 +37,49 @@ export default async function Image() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          background: `url(${bgDataUrl}) center/cover no-repeat`,
+          backgroundColor: "#0A1F44",
           position: "relative",
           fontFamily: "serif",
+          overflow: "hidden",
         }}
       >
-        {/* Dark overlay for readability */}
+        {/* Background image — absolutely positioned */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={bgDataUrl}
+          width={1200}
+          height={630}
+          alt=""
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+          }}
+        />
+
+        {/* Dark overlay gradient — absolute */}
         <div
           style={{
             position: "absolute",
-            inset: 0,
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            display: "flex",
             background:
-              "linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.3) 100%)",
+              "linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0.8) 100%)",
           }}
         />
 
         {/* Content */}
         <div
           style={{
-            position: "relative",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            zIndex: 1,
           }}
         >
           {/* Top eyebrow */}
@@ -66,15 +93,14 @@ export default async function Image() {
               letterSpacing: 8,
               textTransform: "uppercase",
               marginBottom: 28,
-              opacity: 0.9,
             }}
           >
             <div
-              style={{ width: 48, height: 1, background: "#C8A86B" }}
+              style={{ width: 48, height: 1, backgroundColor: "#C8A86B" }}
             />
             <span>Est. 1980 · Dal Lake</span>
             <div
-              style={{ width: 48, height: 1, background: "#C8A86B" }}
+              style={{ width: 48, height: 1, backgroundColor: "#C8A86B" }}
             />
           </div>
 
@@ -149,7 +175,6 @@ export default async function Image() {
             letterSpacing: 6,
             textTransform: "uppercase",
             fontFamily: "sans-serif",
-            zIndex: 1,
           }}
         >
           Srinagar · Kashmir
