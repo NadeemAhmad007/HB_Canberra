@@ -45,6 +45,7 @@ import {
   createInvoice,
   updateInvoiceStatus,
   getInvoiceById,
+  getTotalPaid,
   updateBookingStatus,
   bulkUpdateBookingStatus,
   getAvailableUnits,
@@ -270,7 +271,7 @@ export async function PUT(request: Request) {
                       const inv = await getInvoiceById(invoiceId);
                       if (inv) {
                         const bank = getBankDetails(settings);
-                        const paid = await (await import("@/lib/db")).getTotalPaid(bookingRef).catch(() => 0);
+                        const paid = await getTotalPaid(bookingRef).catch(() => 0);
                         const pdfBuf = await generateInvoicePdf({ invoice: inv, booking, settings, bank, paid });
                         attachments.push({ filename: `Invoice_${inv.invoice_no}.pdf`, content: pdfBuf });
                       }
@@ -506,7 +507,7 @@ export async function PUT(request: Request) {
                   const inv = await getInvoiceById(invoiceId);
                   if (inv) {
                     const bank = getBankDetails(settings);
-                    const paid = await (await import("@/lib/db")).getTotalPaid(bookingRef).catch(() => 0);
+                    const paid = await getTotalPaid(bookingRef).catch(() => 0);
                     const pdfBuf = await generateInvoicePdf({ invoice: inv, booking, settings, bank, paid });
                     attachments.push({ filename: `Invoice_${inv.invoice_no}.pdf`, content: pdfBuf });
                   }

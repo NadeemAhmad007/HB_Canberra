@@ -43,7 +43,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const taxRate = parseFloat(settings.tax_rate || "12");
 
   const googleMapsUrl = `https://maps.google.com/?q=${escape(hotelAddr)}`;
-
   const subtotal = invoice.subtotal;
   const tax = invoice.tax;
   const total = invoice.total;
@@ -68,7 +67,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 11px; color: #888; }
   .footer a { color: #C8A86B; text-decoration: none; }
   .stamp { display: inline-block; padding: 4px 10px; border: 1px solid #C8A86B; color: #C8A86B; border-radius: 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 2px; }
-  .logo { width: 72px; height: 72px; border-radius: 50%; display: block; }
+  .logo { width: 96px; height: 96px; border-radius: 50%; display: block; }
   @media print { body { padding: 16px; } }
 </style></head>
 <body>
@@ -77,8 +76,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       <img src="${escape(website)}/HB_Logo.png" alt="${escape(hotelName)}" class="logo">
       <div>
         <div class="brand">${escape(hotelName)}</div>
-        <div class="muted" style="margin-top:4px">${escape(hotelAddr)}</div>
-        <div class="muted" style="margin-top:2px"><a href="${googleMapsUrl}" target="_blank" style="color:#C8A86B;font-size:10px">View on Google Maps →</a></div>
+        <div class="muted" style="margin-top:4px"><a href="${googleMapsUrl}" target="_blank" style="color:#666;text-decoration:none">${escape(hotelAddr)}</a></div>
+        <div class="muted" style="margin-top:2px"><a href="${googleMapsUrl}" target="_blank" style="color:#C8A86B;font-size:10px;text-decoration:none">Open in Google Maps →</a></div>
         <div class="muted" style="margin-top:4px">${escape(hotelEmail)} · ${escape(hotelPhone)}</div>
         <div class="muted" style="margin-top:2px"><a href="${escape(website)}" style="color:#C8A86B;font-size:10px">${escape(website)}</a></div>
       </div>
@@ -136,8 +135,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       <tr>
         <td style="vertical-align:top;padding-bottom:8px">
           <div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#999;margin-bottom:4px">Address</div>
-          <div>${escape(hotelAddr)}</div>
-          <div style="margin-top:2px"><a href="${googleMapsUrl}" target="_blank">View on Google Maps →</a></div>
+          <div><a href="${googleMapsUrl}" target="_blank" style="color:#666;text-decoration:none">${escape(hotelAddr)}</a></div>
+          <div style="margin-top:2px"><a href="${googleMapsUrl}" target="_blank" style="color:#C8A86B;font-size:10px;text-decoration:none">Open in Google Maps →</a></div>
         </td>
         <td style="vertical-align:top;padding-bottom:8px;text-align:right">
           <div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#999;margin-bottom:4px">Contact</div>

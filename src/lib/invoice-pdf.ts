@@ -46,12 +46,19 @@ export async function generateInvoicePdf(params: {
   const dark = "#111111";
   const muted = "#666666";
   const GM = doc.page.width - 48;
+  const logoSize = 100;
 
   // ── Header ──────────────────────────────────────────────────────────
-  doc.fontSize(20).font("Helvetica-Bold").fillColor(gold).text(hotelName.toUpperCase(), 48, 48, { characterSpacing: 3 });
-  doc.fontSize(9).font("Helvetica").fillColor(muted).text(hotelAddr, 48, 74);
-  doc.fontSize(9).fillColor(muted).text(`${hotelEmail} · ${hotelPhone}`, 48, 88);
-  doc.fontSize(8).fillColor(gold).text(website, 48, 102);
+  // Logo
+  try {
+    doc.image(website + "/HB_Logo.png", 48, 48, { width: logoSize, height: logoSize });
+  } catch {}
+  const nameX = 48 + logoSize + 16;
+  doc.fontSize(20).font("Helvetica-Bold").fillColor(gold).text(hotelName.toUpperCase(), nameX, 52, { characterSpacing: 3 });
+  doc.fontSize(8).font("Helvetica").fillColor(muted).text(hotelAddr, nameX, 76);
+  doc.fontSize(7).fillColor(gold).text("Open in Google Maps →", nameX, 90, { link: `https://maps.google.com/?q=${encodeURIComponent(hotelAddr)}`, underline: false });
+  doc.fontSize(8).fillColor(muted).text(`${hotelEmail} · ${hotelPhone}`, nameX, 106);
+  doc.fontSize(7).fillColor(gold).text(website, nameX, 120);
 
   // Invoice title right-aligned
   doc.fontSize(26).font("Helvetica-Bold").fillColor(dark).text("INVOICE", GM, 48, { align: "right" });
@@ -63,10 +70,10 @@ export async function generateInvoicePdf(params: {
   doc.fontSize(8).fillColor(gold).text(invoice.status.toUpperCase(), GM, 108, { align: "right" });
 
   // Gold line
-  doc.moveTo(48, 126).lineTo(GM, 126).strokeColor(gold).lineWidth(2).stroke();
+  doc.moveTo(48, 138).lineTo(GM, 138).strokeColor(gold).lineWidth(2).stroke();
 
   // ── Bill To / Booking ───────────────────────────────────────────────
-  const billToY = 148;
+  const billToY = 160;
   doc.fontSize(9).font("Helvetica").fillColor(muted).text("Billed to", 48, billToY);
   doc.fontSize(12).font("Helvetica-Bold").fillColor(dark).text(escape(invoice.guest_name), 48, billToY + 14);
   let by = billToY + 30;
@@ -147,7 +154,7 @@ export async function generateInvoicePdf(params: {
   doc.moveTo(48, footerY).lineTo(GM, footerY).strokeColor("#ddd").lineWidth(1).stroke();
 
   doc.fontSize(8).font("Helvetica").fillColor(muted)
-    .text(hotelAddr, 48, footerY + 10)
+    .text(hotelAddr, 48, footerY + 10, { link: `https://maps.google.com/?q=${encodeURIComponent(hotelAddr)}` })
     .text(`${hotelPhone} · ${hotelEmail} · ${website}`, 48, footerY + 24);
 
   doc.fontSize(8).fillColor(gold)

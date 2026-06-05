@@ -28,7 +28,7 @@ export async function sendEmail(opts: {
     if (opts.attachments?.length) {
       payload.attachments = opts.attachments.map((a) => ({
         filename: a.filename,
-        content: a.content.toString("base64"),
+        content: a.content,
       }));
     }
     const res = await client().emails.send(payload);
@@ -68,6 +68,7 @@ export function brandedEmailHtml(bodyHtml: string, vars: {
   const address = vars.propertyAddress || "Gate no 13, Dal Lake Boulevard Road, Srinagar, 190001, Jammu & Kashmir, India";
 
   const logoUrl = `${website}/HB_Logo.png`;
+  const mapsUrl = `https://maps.google.com/?q=${escapeHtml(address)}`;
   const instagramUrl = "https://www.instagram.com/houseboatcanberra";
   const facebookUrl = "https://www.facebook.com/people/Houseboat-Canberra/61553670362440/";
   const whatsappUrl = `https://wa.me/4917684005474?text=Hi%2C%20I'd%20like%20to%20know%20more%20about%20Houseboat%20Canberra.`;
@@ -91,7 +92,7 @@ export function brandedEmailHtml(bodyHtml: string, vars: {
 
   <!-- Logo + Name -->
   <tr><td style="padding:36px 40px 20px;text-align:center">
-    <img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(name)}" width="96" height="96" style="width:96px;height:96px;border-radius:50%;display:block;margin:0 auto 12px">
+    <img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(name)}" width="120" height="120" style="width:120px;height:120px;border-radius:50%;display:block;margin:0 auto 12px">
     <div style="font-size:15px;letter-spacing:4px;text-transform:uppercase;color:#C8A86B;font-weight:400">${escapeHtml(name)}</div>
     <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.35);margin-top:4px">Luxury Afloat — Dal Lake</div>
   </td></tr>
@@ -113,8 +114,8 @@ export function brandedEmailHtml(bodyHtml: string, vars: {
       <tr>
         <td style="vertical-align:top;padding-right:20px;padding-bottom:16px">
           <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.35);margin-bottom:6px">Address</div>
-          <div>${escapeHtml(address)}</div>
-          <div style="margin-top:4px"><a href="https://maps.google.com/?q=${escapeHtml(address)}" target="_blank" style="color:#C8A86B;font-size:11px;text-decoration:none">View on Google Maps →</a></div>
+          <div><a href="${escapeHtml(mapsUrl)}" target="_blank" style="color:rgba(255,255,255,0.65);text-decoration:none;font-size:12px">${escapeHtml(address)}</a></div>
+          <div style="margin-top:4px"><a href="${escapeHtml(mapsUrl)}" target="_blank" style="color:#C8A86B;font-size:10px;text-decoration:none;text-transform:uppercase;letter-spacing:1px">Open in Google Maps →</a></div>
         </td>
         <td style="vertical-align:top;padding-bottom:16px">
           <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.35);margin-bottom:6px">Contact</div>
