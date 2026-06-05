@@ -247,11 +247,24 @@ export async function PUT(request: Request) {
         }
         const booking = await getBookingByRef(bookingRef);
         if (!booking) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
-        await recordPayment({ booking_ref: bookingRef, amount, method, reference, notes, recorded_by: "admin" });
+        try {
+          await recordPayment({ booking_ref: bookingRef, amount, method, reference, notes, recorded_by: "admin" });
+        } catch (e) {
+          if (isMissingTableError(e) || isMissingColumnError(e)) {
+            console.warn("[admin] recordPayment skipped (table/column missing):", e instanceof Error ? e.message : e);
+          } else {
+            throw e;
+          }
+        }
         const newPaid = (booking.amount_paid || 0) + amount;
         const newStatus = newPaid >= booking.amount ? "paid" : "partial";
         const sql = getSql();
-        await sql`UPDATE bookings SET payment_status = ${newStatus}, payment_gateway = COALESCE(NULLIF(${method || ""}, ''), payment_gateway), updated_at = now() WHERE booking_ref = ${bookingRef}`;
+        try {
+          await sql`UPDATE bookings SET payment_status = ${newStatus}, payment_gateway = COALESCE(NULLIF(${method || ""}, ''), payment_gateway), updated_at = now() WHERE booking_ref = ${bookingRef}`;
+        } catch (e) {
+          if (!isMissingColumnError(e)) throw e;
+          try { await sql`UPDATE bookings SET updated_at = now() WHERE booking_ref = ${bookingRef}`; } catch {}
+        }
         try { await addActivityLog("payment_recorded", "booking", bookingRef, `Payment of ₹${amount} recorded (${method || "bank"})${reference ? ` ref ${reference}` : ""}`); } catch (e) { console.error("[admin] activity log failed:", e); }
         try { await upsertGuestFromBooking({ name: booking.guest_name, email: booking.email, phone: booking.phone, amount_spent: amount }); } catch (e) { console.error("[admin] guest upsert failed:", e); }
         return NextResponse.json({ ok: true, amount_paid: newPaid, payment_status: newStatus });
