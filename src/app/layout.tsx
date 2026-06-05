@@ -47,6 +47,15 @@ export const metadata: Metadata = {
   verification: {
     google: process.env.GOOGLE_SITE_VERIFICATION,
   },
+  icons: {
+    icon: [
+      { url: "/favicon.png", type: "image/png", sizes: "48x48" },
+    ],
+    apple: [
+      { url: "/HB_Logo.png", sizes: "180x180" },
+    ],
+  },
+  manifest: "/manifest.json",
   openGraph: {
     title: "Houseboat Canberra · A Heritage Sanctuary on Dal Lake",
     description:
@@ -76,13 +85,6 @@ export const metadata: Metadata = {
     follow: true,
     googleBot: { index: true, follow: true, "max-image-preview": "large" },
   },
-  icons: {
-    icon: [
-      { url: "/HB_Logo.png", type: "image/png", sizes: "any" },
-    ],
-    apple: "/HB_Logo.png",
-  },
-  manifest: "/manifest.json",
 };
 
 export const viewport: Viewport = {
