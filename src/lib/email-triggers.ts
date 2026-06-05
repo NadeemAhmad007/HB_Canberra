@@ -36,7 +36,7 @@ function formatDate(d: any): string {
 
 async function sendTemplate(template: { subject: string; body: string }, booking: any, settings: Record<string, string>, to: string): Promise<boolean> {
   const info = settingsFromMap(settings);
-  const address = settings.hotel_address || "Gate no 13, Dal Lake Boulevard Road, Srinagar, 190001, Jammu & Kashmir, India";
+  const address = settings.hotel_address || "Gate no 13, Dal Lake Boulevard Road, Srinagar, 190001, Jammu and Kashmir, India";
   const vars: Record<string, string> = {
     guest_name: booking.guest_name || "Guest",
     booking_ref: booking.booking_ref || "",

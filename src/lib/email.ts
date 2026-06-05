@@ -65,7 +65,7 @@ export function brandedEmailHtml(bodyHtml: string, vars: {
   const email = vars.propertyEmail || "houseboat.canberra@gmail.com";
   const phone = vars.propertyPhone || "+49 176 84005474";
   const website = vars.propertyWebsite || "https://houseboatcanberra.com";
-  const address = vars.propertyAddress || "Gate no 13, Dal Lake Boulevard Road, Srinagar, 190001, Jammu & Kashmir, India";
+  const address = vars.propertyAddress || "Gate no 13, Dal Lake Boulevard Road, Srinagar, 190001, Jammu and Kashmir, India";
 
   const logoUrl = `${website}/HB_Logo.png`;
   const mapsUrl = `https://maps.google.com/?q=${escapeHtml(address)}`;

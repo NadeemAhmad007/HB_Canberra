@@ -34,7 +34,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const bank = getBankDetails(settings);
 
   const hotelName = settings.hotel_name || "Houseboat Canberra";
-  const hotelAddr = settings.hotel_address || "Gate no 13, Dal Lake Boulevard Road, Srinagar, 190001, Jammu & Kashmir, India";
+  const hotelAddr = settings.hotel_address || "Gate no 13, Dal Lake Boulevard Road, Srinagar, 190001, Jammu and Kashmir, India";
   const hotelEmail = settings.hotel_email || "houseboat.canberra@gmail.com";
   const hotelPhone = settings.hotel_phone || "+49 176 84005474";
   const website = settings.hotel_website || "https://houseboatcanberra.com";
