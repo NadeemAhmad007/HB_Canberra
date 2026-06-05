@@ -42,7 +42,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const checkoutTime = settings.checkout_time || "11:00";
   const taxRate = parseFloat(settings.tax_rate || "12");
 
-  const googleMapsUrl = `https://maps.google.com/?q=${escape(hotelAddr)}`;
+  const googleMapsUrl = settings.maps_url || settings.hotel_maps_url || "https://maps.app.goo.gl/SksBEMezBTQxYJFS8";
   const subtotal = invoice.subtotal;
   const tax = invoice.tax;
   const total = invoice.total;

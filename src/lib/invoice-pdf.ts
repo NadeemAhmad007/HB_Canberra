@@ -31,6 +31,7 @@ export async function generateInvoicePdf(params: {
   const hotelEmail = settings.hotel_email || "houseboat.canberra@gmail.com";
   const hotelPhone = settings.hotel_phone || "+49 176 84005474";
   const website = settings.hotel_website || "https://houseboatcanberra.com";
+  const hotelMapsUrl = settings.maps_url || settings.hotel_maps_url || "https://maps.app.goo.gl/SksBEMezBTQxYJFS8";
   const checkinTime = settings.checkin_time || "14:00";
   const checkoutTime = settings.checkout_time || "11:00";
   const taxRate = parseFloat(settings.tax_rate || "12");
@@ -42,6 +43,16 @@ export async function generateInvoicePdf(params: {
   doc.on("data", (chunk: Buffer) => buffers.push(chunk));
   const done = new Promise<Buffer>((resolve) => doc.on("end", () => resolve(Buffer.concat(buffers))));
 
+  // Fetch logo image
+  let logoBuf: Buffer | null = null;
+  try {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 5000);
+    const resp = await fetch(website + "/HB_Logo.png", { signal: controller.signal });
+    clearTimeout(id);
+    if (resp.ok) logoBuf = Buffer.from(await resp.arrayBuffer());
+  } catch { /* logo unavailable */ }
+
   const gold = "#C8A86B";
   const dark = "#111111";
   const muted = "#666666";
@@ -50,13 +61,13 @@ export async function generateInvoicePdf(params: {
 
   // ── Header ──────────────────────────────────────────────────────────
   // Logo
-  try {
-    doc.image(website + "/HB_Logo.png", 48, 48, { width: logoSize, height: logoSize });
-  } catch {}
+  if (logoBuf) {
+    try { doc.image(logoBuf, 48, 48, { width: logoSize, height: logoSize }); } catch {}
+  }
   const nameX = 48 + logoSize + 16;
   doc.fontSize(20).font("Helvetica-Bold").fillColor(gold).text(hotelName.toUpperCase(), nameX, 52, { characterSpacing: 3 });
   doc.fontSize(8).font("Helvetica").fillColor(muted).text(hotelAddr, nameX, 76);
-  doc.fontSize(7).fillColor(gold).text("Open in Google Maps →", nameX, 90, { link: `https://maps.google.com/?q=${encodeURIComponent(hotelAddr)}`, underline: false });
+  doc.fontSize(7).fillColor(gold).text("Open in Google Maps →", nameX, 90, { link: hotelMapsUrl, underline: false });
   doc.fontSize(8).fillColor(muted).text(`${hotelEmail} · ${hotelPhone}`, nameX, 106);
   doc.fontSize(7).fillColor(gold).text(website, nameX, 120);
 
@@ -154,7 +165,7 @@ export async function generateInvoicePdf(params: {
   doc.moveTo(48, footerY).lineTo(GM, footerY).strokeColor("#ddd").lineWidth(1).stroke();
 
   doc.fontSize(8).font("Helvetica").fillColor(muted)
-    .text(hotelAddr, 48, footerY + 10, { link: `https://maps.google.com/?q=${encodeURIComponent(hotelAddr)}` })
+    .text(hotelAddr, 48, footerY + 10, { link: hotelMapsUrl })
     .text(`${hotelPhone} · ${hotelEmail} · ${website}`, 48, footerY + 24);
 
   doc.fontSize(8).fillColor(gold)

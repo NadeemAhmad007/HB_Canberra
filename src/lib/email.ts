@@ -45,6 +45,7 @@ export function settingsFromMap(settings: Record<string, string>) {
     propertyEmail: settings.hotel_email || settings.property_email || "houseboat.canberra@gmail.com",
     propertyPhone: settings.hotel_phone || settings.property_phone || "+49 176 84005474",
     propertyWebsite: settings.hotel_website || settings.property_website || "https://hb-canberra.vercel.app",
+    propertyMapsUrl: settings.maps_url || settings.hotel_maps_url || "https://maps.app.goo.gl/SksBEMezBTQxYJFS8",
   };
 }
 
@@ -60,6 +61,7 @@ export function brandedEmailHtml(bodyHtml: string, vars: {
   propertyPhone?: string;
   propertyWebsite?: string;
   propertyAddress?: string;
+  propertyMapsUrl?: string;
 }): string {
   const name = vars.propertyName || "Houseboat Canberra";
   const email = vars.propertyEmail || "houseboat.canberra@gmail.com";
@@ -68,7 +70,7 @@ export function brandedEmailHtml(bodyHtml: string, vars: {
   const address = vars.propertyAddress || "Gate no 13, Dal Lake Boulevard Road, Srinagar, 190001, Jammu and Kashmir, India";
 
   const logoUrl = `${website}/HB_Logo.png`;
-  const mapsUrl = `https://maps.google.com/?q=${escapeHtml(address)}`;
+  const mapsUrl = vars.propertyMapsUrl || "https://maps.app.goo.gl/SksBEMezBTQxYJFS8";
   const instagramUrl = "https://www.instagram.com/houseboatcanberra";
   const facebookUrl = "https://www.facebook.com/people/Houseboat-Canberra/61553670362440/";
   const whatsappUrl = `https://wa.me/4917684005474?text=Hi%2C%20I'd%20like%20to%20know%20more%20about%20Houseboat%20Canberra.`;
