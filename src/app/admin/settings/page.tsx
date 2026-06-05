@@ -49,7 +49,7 @@ export default function SettingsPage() {
     const paymentKeys = PAYMENT_FIELDS.map((f) => f.key);
     [...GENERAL_FIELDS, ...PAYMENT_FIELDS].forEach((f) => {
       if (["hotel_name", "hotel_address", "hotel_email", "hotel_phone", "tax_rate", "currency"].includes(f.key)) {
-        propertyData[f.key.toUpperCase()] = data[f.key] || "";
+        propertyData[f.key.toUpperCase()] = data[f.key.toUpperCase()] || "";
       } else {
         settingsData[f.key] = data[f.key] || "";
       }

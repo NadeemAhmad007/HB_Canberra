@@ -44,6 +44,8 @@ async function sendTemplate(template: { subject: string; body: string }, booking
     check_out: formatDate(booking.check_out),
     room_name: booking.room_name || "Room",
     amount: String(booking.amount || 0),
+    checkin_time: settings.checkin_time || "14:00",
+    checkout_time: settings.checkout_time || "11:00",
     property_email: info.propertyEmail,
     property_phone: info.propertyPhone,
     property_website: info.propertyWebsite,
