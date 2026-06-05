@@ -205,7 +205,9 @@ export async function POST(request: Request) {
         const rooms = await getRooms().catch(() => []);
         const roomName = (rooms as any[]).find((r: any) => r.id === roomIdNum)?.name || "Selected Room";
         await resend.emails.send({
-          from: `Houseboat Canberra <${process.env.EMAIL_FROM || "onboarding@resend.dev"}>`,
+          from: (process.env.EMAIL_FROM || "onboarding@resend.dev").includes("<")
+            ? (process.env.EMAIL_FROM || "onboarding@resend.dev")
+            : `Houseboat Canberra <${process.env.EMAIL_FROM || "onboarding@resend.dev"}>`,
           to: email,
           subject: `Booking Enquiry Received — ${ref}`,
           html: `<div style="font-family:Georgia,serif;max-width:600px;margin:0 auto;background:#0A0D0C;color:#fff;padding:48px 40px;border-radius:12px">

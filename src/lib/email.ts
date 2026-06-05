@@ -21,7 +21,8 @@ export async function sendEmail(opts: {
     return { ok: false, error: "RESEND_API_KEY not configured" };
   }
   try {
-    const from = opts.from || `Houseboat Canberra <${process.env.EMAIL_FROM || "onboarding@resend.dev"}>`;
+    const fallback = process.env.EMAIL_FROM || "onboarding@resend.dev";
+    const from = opts.from || (fallback.includes("<") ? fallback : `Houseboat Canberra <${fallback}>`);
     const res = await client().emails.send({ from, to: opts.to, subject: opts.subject, html: opts.html });
     if ((res as any).error) return { ok: false, error: (res as any).error.message || "Resend error" };
     return { ok: true, id: (res as any).data?.id };
