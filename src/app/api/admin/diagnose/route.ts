@@ -133,10 +133,58 @@ export async function GET(request: Request) {
   const totalApplied = results.filter((r) => r.applied).length;
   const allApplied = totalApplied === MIGRATIONS.length;
 
+  const emailResult: Record<string, string> = {};
+
+  // Email env diagnostics
+  const hasResendKey = !!process.env.RESEND_API_KEY;
+  const emailFrom = process.env.EMAIL_FROM || "(not set — using onboarding@resend.dev)";
+  emailResult.emailFrom = emailFrom;
+  emailResult.resendApiKeySet = String(hasResendKey);
+  emailResult.resendApiKeyPrefix = hasResendKey ? process.env.RESEND_API_KEY!.slice(0, 8) + "..." : "";
+  emailResult.adminNotifyEmailEnv = process.env.ADMIN_NOTIFY_EMAIL || "(not set — will use settings.hotel_email)";
+
+  // Read hotel_email from settings
+  try {
+    const rows = await query("SELECT value FROM settings WHERE key = 'hotel_email' LIMIT 1") as unknown as { rows: Array<{ value: string }> };
+    emailResult.hotelEmailSetting = rows.rows[0]?.value || "(not set)";
+  } catch { emailResult.hotelEmailSetting = "(db error reading settings)"; }
+
+  // Attempt a test email via Resend
+  emailResult.testEmailSent = "no";
+  if (hasResendKey) {
+    try {
+      const { Resend } = await import("resend");
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const targetEmail = emailResult.hotelEmailSetting !== "(not set)" && emailResult.hotelEmailSetting !== "(db error reading settings)"
+        ? emailResult.hotelEmailSetting
+        : "houseboat.canberra@gmail.com";
+      const sendFrom = emailFrom.includes("<") ? emailFrom : `Houseboat Canberra <${emailFrom}>`;
+      const testRes = await resend.emails.send({
+        from: sendFrom,
+        to: targetEmail,
+        subject: "Test email from diagnose endpoint",
+        html: "<p>If you see this, your Resend configuration is working.</p>",
+      });
+      if ((testRes as any).error) {
+        emailResult.testEmailSent = "failed";
+        emailResult.testEmailError = (testRes as any).error.message || String((testRes as any).error);
+      } else {
+        emailResult.testEmailSent = "ok";
+        emailResult.testEmailId = (testRes as any).data?.id;
+      }
+    } catch (e) {
+      emailResult.testEmailSent = "errored";
+      emailResult.testEmailError = e instanceof Error ? e.message : String(e);
+    }
+  } else {
+    emailResult.testEmailSent = "skipped (no key)";
+  }
+
   return NextResponse.json({
     totalMigrations: MIGRATIONS.length,
     applied: totalApplied,
     allApplied,
+    email: emailResult,
     results,
     recommendation: allApplied
       ? "All migrations applied — full PMS features available."
