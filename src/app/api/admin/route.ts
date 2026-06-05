@@ -194,6 +194,65 @@ export async function PUT(request: Request) {
         }
         await updateBookingStatus(bookingRef, status, stripePaymentIntent);
         try { await addActivityLog("booking_status", "booking", bookingRef, `Status changed to ${status}`); } catch (e) { console.error("[admin] activity log failed:", e); }
+
+        // Auto-create invoice + send confirmation email when status → confirmed
+        if (status === "confirmed") {
+          const booking = await getBookingByRef(bookingRef);
+          if (booking) {
+            let invoiceId: number | null = null;
+            try {
+              const existing = await getInvoiceByBooking(bookingRef);
+              if (!existing) {
+                const settings = await getSettings();
+                const taxRate = (await getTaxRate()) / 100;
+                const subtotal = booking.amount;
+                const tax = Math.round(subtotal * taxRate);
+                const total = subtotal + tax;
+                const items = [
+                  { description: `${booking.room_name || "Room"} × ${booking.units} unit(s) × ${booking.nights} night(s)`, amount: Math.round(subtotal / Math.max(1, booking.nights)), qty: booking.units * booking.nights },
+                ];
+                const inv = await createInvoice({
+                  booking_ref: bookingRef,
+                  invoice_no: "INV-" + Date.now(),
+                  guest_name: booking.guest_name,
+                  items, subtotal, tax, total,
+                  currency: booking.currency || "INR",
+                  status: "sent",
+                });
+                invoiceId = inv?.id ?? null;
+              }
+            } catch (e) { console.error("[admin] auto-invoice on status-confirmed failed:", e); }
+
+            if (booking.email) {
+              try {
+                const template = await getEmailTemplate("booking_confirmed");
+                const settings = await getSettings();
+                const info = settingsFromMap(settings);
+                if (template) {
+                  const settingRows = await getSettings();
+                  const address = settingRows.hotel_address || "Gate no 13, Dal Lake Boulevard Road, Srinagar, 190001, Jammu & Kashmir, India";
+                  const vars: Record<string, string> = {
+                    guest_name: booking.guest_name,
+                    booking_ref: booking.booking_ref,
+                    check_in: booking.check_in,
+                    check_out: booking.check_out,
+                    room_name: booking.room_name || "Room",
+                    amount: String(booking.amount || 0),
+                    property_email: info.propertyEmail,
+                    property_phone: info.propertyPhone,
+                    property_website: info.propertyWebsite,
+                    property_address: address,
+                    property_name: info.propertyName,
+                  };
+                  const bodyHtml = applyTemplate(template.body, vars).replace(/\n/g, "<br>");
+                  const html = brandedEmailHtml(bodyHtml, { ...info, propertyAddress: address });
+                  await sendEmail({ to: booking.email, subject: template.subject, html });
+                }
+              } catch (e) { console.error("[admin] confirmation email on status-confirmed failed:", e); }
+            }
+          }
+        }
+
         return NextResponse.json({ ok: true });
       }
       case "bulk-booking-status": {

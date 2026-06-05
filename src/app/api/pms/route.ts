@@ -14,6 +14,7 @@ import {
   addActivityLog,
   upsertGuestFromBooking,
 } from "@/lib/db";
+import { brandedEmailHtml, sendEmail } from "@/lib/email";
 import { notifyAdminNewBooking } from "@/lib/notify";
 
 const FALLBACK_ROOMS = [
@@ -200,33 +201,25 @@ export async function POST(request: Request) {
     // Send confirmation email async (non-blocking)
     if (email && process.env.RESEND_API_KEY) {
       try {
-        const { Resend } = await import("resend");
-        const resend = new Resend(process.env.RESEND_API_KEY);
         const rooms = await getRooms().catch(() => []);
         const roomName = (rooms as any[]).find((r: any) => r.id === roomIdNum)?.name || "Selected Room";
-        await resend.emails.send({
-          from: (process.env.EMAIL_FROM || "onboarding@resend.dev").includes("<")
-            ? (process.env.EMAIL_FROM || "onboarding@resend.dev")
-            : `Houseboat Canberra <${process.env.EMAIL_FROM || "onboarding@resend.dev"}>`,
+        const bodyHtml = `
+          <h2 style="font-size:20px;font-weight:400;color:#fff;margin:0 0 6px">Thank you, ${guestName}!</h2>
+          <p style="font-size:14px;color:rgba(255,255,255,0.65);line-height:1.6;margin:0 0 24px">Your booking enquiry has reached the reservations desk at <strong style="color:#fff">Houseboat Canberra</strong>. We will confirm your stay within the hour.</p>
+          <table style="width:100%;border-collapse:collapse;margin:16px 0">
+            <tr><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px;width:40%">Reference</td><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:13px;color:#C8A86B;font-family:monospace">${ref}</td></tr>
+            <tr><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px">Room</td><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:13px;color:#fff">${roomName} × ${unitsRequested}</td></tr>
+            <tr><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px">Check-in</td><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:13px;color:#fff">${checkIn}</td></tr>
+            <tr><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px">Check-out</td><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:13px;color:#fff">${checkOut}</td></tr>
+            <tr><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px">Guests</td><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:13px;color:#fff">${adults} adults, ${children} children</td></tr>
+            <tr><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px">Total</td><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:13px;color:#fff"><strong>₹${(amount || 0).toLocaleString()}</strong></td></tr>
+          </table>
+          <p style="font-size:13px;color:rgba(255,255,255,0.55);margin:20px 0 0">If you have any questions, reply to this email or contact us directly. We look forward to welcoming you aboard.</p>
+        `;
+        await sendEmail({
           to: email,
           subject: `Booking Enquiry Received — ${ref}`,
-          html: `<div style="font-family:Georgia,serif;max-width:600px;margin:0 auto;background:#0A0D0C;color:#fff;padding:48px 40px;border-radius:12px">
-            <div style="text-align:center;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:24px;margin-bottom:32px">
-              <h1 style="font-size:20px;font-weight:400;letter-spacing:4px;text-transform:uppercase;color:#C8A86B;margin:0">Houseboat Canberra</h1>
-              <p style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:3px;text-transform:uppercase;margin:8px 0 0">Luxury Afloat — Dal Lake</p>
-            </div>
-            <h2 style="font-size:22px;font-weight:400;color:#C8A86B;margin:0 0 8px">Thank you, ${guestName}!</h2>
-            <p style="font-size:14px;color:rgba(255,255,255,0.7);line-height:1.6;margin:0 0 24px">Your booking enquiry has reached the reservations desk at <strong style="color:#fff">Houseboat Canberra</strong>. We will confirm your stay within the hour.</p>
-            <table style="width:100%;border-collapse:collapse;margin:24px 0">
-              <tr><td style="padding:10px 14px;border:1px solid rgba(255,255,255,0.1);font-size:12px;color:rgba(255,255,255,0.5)">Reference</td><td style="padding:10px 14px;border:1px solid rgba(255,255,255,0.1);font-size:13px;color:#C8A86B;font-family:monospace"><strong>${ref}</strong></td></tr>
-              <tr><td style="padding:10px 14px;border:1px solid rgba(255,255,255,0.1);font-size:12px;color:rgba(255,255,255,0.5)">Room</td><td style="padding:10px 14px;border:1px solid rgba(255,255,255,0.1);font-size:13px">${roomName} × ${unitsRequested}</td></tr>
-              <tr><td style="padding:10px 14px;border:1px solid rgba(255,255,255,0.1);font-size:12px;color:rgba(255,255,255,0.5)">Check-in</td><td style="padding:10px 14px;border:1px solid rgba(255,255,255,0.1);font-size:13px">${checkIn}</td></tr>
-              <tr><td style="padding:10px 14px;border:1px solid rgba(255,255,255,0.1);font-size:12px;color:rgba(255,255,255,0.5)">Check-out</td><td style="padding:10px 14px;border:1px solid rgba(255,255,255,0.1);font-size:13px">${checkOut}</td></tr>
-              <tr><td style="padding:10px 14px;border:1px solid rgba(255,255,255,0.1);font-size:12px;color:rgba(255,255,255,0.5)">Guests</td><td style="padding:10px 14px;border:1px solid rgba(255,255,255,0.1);font-size:13px">${adults} adults, ${children} children</td></tr>
-              <tr><td style="padding:10px 14px;border:1px solid rgba(255,255,255,0.1);font-size:12px;color:rgba(255,255,255,0.5)">Total</td><td style="padding:10px 14px;border:1px solid rgba(255,255,255,0.1);font-size:13px"><strong>₹${(amount || 0).toLocaleString()}</strong></td></tr>
-            </table>
-            <p style="font-size:12px;color:rgba(255,255,255,0.4);text-align:center;margin:32px 0 0;border-top:1px solid rgba(255,255,255,0.1);padding-top:24px">Houseboat Canberra — Dal Lake, Srinagar<br>${process.env.EMAIL_FROM ? '' : ''}</p>
-          </div>`,
+          html: brandedEmailHtml(bodyHtml, {}),
         });
       } catch { }
     }
