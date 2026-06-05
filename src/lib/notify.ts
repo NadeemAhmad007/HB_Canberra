@@ -1,5 +1,5 @@
 import { neon } from "@neondatabase/serverless";
-import { sendEmail } from "./email";
+import { sendEmail, brandedEmailHtml } from "./email";
 
 export type NewBookingPayload = {
   ref: string;
@@ -31,37 +31,26 @@ async function getAdminEmail(): Promise<string> {
   return process.env.ADMIN_NOTIFY_EMAIL || "houseboat.canberra@gmail.com";
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function buildAdminEmailHtml(p: NewBookingPayload, propertyName: string): string {
+function buildAdminBodyHtml(p: NewBookingPayload): string {
   const cur = p.currency || "INR";
   const amt = p.amount ? `${cur} ${p.amount.toLocaleString()}` : "—";
   const nights = p.nights ?? 1;
-  return `<div style="font-family:Georgia,serif;max-width:600px;margin:0 auto;background:#0A0D0C;color:#fff;padding:32px 28px;border-radius:12px">
-    <div style="border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:16px;margin-bottom:20px">
-      <h1 style="font-size:16px;font-weight:400;letter-spacing:3px;text-transform:uppercase;color:#C8A86B;margin:0">${escapeHtml(propertyName)}</h1>
-      <p style="font-size:11px;color:rgba(255,255,255,0.5);letter-spacing:2px;margin:6px 0 0;text-transform:uppercase">New booking</p>
-    </div>
-    <h2 style="font-size:18px;font-weight:400;color:#C8A86B;margin:0 0 6px">${escapeHtml(p.guestName)}</h2>
-    <p style="font-size:12px;color:rgba(255,255,255,0.55);margin:0 0 18px">Ref <strong style="color:#C8A86B;font-family:monospace">${escapeHtml(p.ref)}</strong> · via ${escapeHtml(p.source)}</p>
-    <table style="width:100%;border-collapse:collapse;margin:8px 0 18px">
-      <tr><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px;width:40%">Room</td><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:13px">${escapeHtml(p.roomName || "Room")}</td></tr>
-      <tr><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px">Check-in</td><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:13px">${escapeHtml(p.checkIn)}</td></tr>
-      <tr><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px">Check-out</td><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:13px">${escapeHtml(p.checkOut)}</td></tr>
-      <tr><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px">Nights</td><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:13px">${nights}</td></tr>
-      <tr><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px">Total</td><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:13px"><strong>${escapeHtml(amt)}</strong></td></tr>
-      ${p.guestEmail ? `<tr><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px">Guest email</td><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:13px"><a href="mailto:${escapeHtml(p.guestEmail)}" style="color:#C8A86B">${escapeHtml(p.guestEmail)}</a></td></tr>` : ""}
-      ${p.guestPhone ? `<tr><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px">Guest phone</td><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:13px"><a href="tel:${escapeHtml(p.guestPhone)}" style="color:#C8A86B">${escapeHtml(p.guestPhone)}</a></td></tr>` : ""}
+  const adminUrl = process.env.ADMIN_URL || "https://houseboatcanberra.com/admin/bookings";
+  return `
+    <div style="margin-bottom:4px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#C8A86B">New booking · via ${p.source}</div>
+    <h1 style="font-size:22px;font-weight:400;color:#fff;margin:8px 0 4px">${p.guestName}</h1>
+    <p style="font-size:13px;color:rgba(255,255,255,0.5);margin:0 0 20px">Ref <strong style="color:#C8A86B;font-family:monospace">${p.ref}</strong></p>
+    <table style="width:100%;border-collapse:collapse;margin:0 0 20px">
+      <tr><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px;width:40%">Room</td><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:13px;color:#fff">${p.roomName || "Room"}</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px">Check-in</td><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:13px;color:#fff">${p.checkIn}</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px">Check-out</td><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:13px;color:#fff">${p.checkOut}</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px">Nights</td><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:13px;color:#fff">${nights}</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px">Total</td><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:13px;color:#fff"><strong>${amt}</strong></td></tr>
+      ${p.guestEmail ? `<tr><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px">Guest email</td><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:13px"><a href="mailto:${p.guestEmail}" style="color:#C8A86B">${p.guestEmail}</a></td></tr>` : ""}
+      ${p.guestPhone ? `<tr><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px">Guest phone</td><td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.08);font-size:13px"><a href="tel:${p.guestPhone}" style="color:#C8A86B">${p.guestPhone}</a></td></tr>` : ""}
     </table>
-    <p style="margin:0"><a href="${process.env.ADMIN_URL || "https://houseboatcanberra.com/admin/bookings"}" style="display:inline-block;background:#C8A86B;color:#0A0D0C;padding:10px 18px;border-radius:6px;font-size:12px;letter-spacing:2px;text-transform:uppercase;text-decoration:none;font-weight:600">Open in admin</a></p>
-  </div>`;
+    <p style="margin:0"><a href="${adminUrl}" style="display:inline-block;background:#C8A86B;color:#0A0D0C;padding:10px 20px;border-radius:6px;font-size:12px;letter-spacing:2px;text-transform:uppercase;text-decoration:none;font-weight:600">Open in admin</a></p>
+  `;
 }
 
 export async function notifyAdminNewBooking(payload: NewBookingPayload): Promise<{ inApp: boolean; email: boolean }> {
@@ -96,10 +85,11 @@ export async function notifyAdminNewBooking(payload: NewBookingPayload): Promise
         const rows = await sql`SELECT value FROM settings WHERE key = 'hotel_name' LIMIT 1` as unknown as Array<{ value: string }>;
         if (rows[0]?.value) propertyName = rows[0].value;
       } catch { }
+      const bodyHtml = buildAdminBodyHtml(payload);
       const res = await sendEmail({
         to: adminEmail,
         subject: `New booking — ${payload.guestName} (${payload.ref})`,
-        html: buildAdminEmailHtml(payload, propertyName),
+        html: brandedEmailHtml(bodyHtml, { propertyName, propertyEmail: adminEmail }),
       });
       result.email = !!res.ok;
       if (!res.ok) console.error("[notify] admin email send failed:", res.error);

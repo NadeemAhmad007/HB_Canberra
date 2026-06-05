@@ -47,7 +47,7 @@ import {
   upsertGuestFromBooking,
   transitionBookingStatus,
 } from "@/lib/db";
-import { applyTemplate, sendEmail, settingsFromMap } from "@/lib/email";
+import { applyTemplate, sendEmail, settingsFromMap, brandedEmailHtml } from "@/lib/email";
 import { neon } from "@neondatabase/serverless";
 import { notifyAdminNewBooking } from "@/lib/notify";
 
@@ -382,6 +382,8 @@ export async function PUT(request: Request) {
             const settings = await getSettings();
             const info = settingsFromMap(settings);
             if (template) {
+              const settingRows = await getSettings();
+              const address = settingRows.hotel_address || "Gate no 13, Dal Lake Boulevard Road, Srinagar, 190001, Jammu & Kashmir, India";
               const vars: Record<string, string> = {
                 guest_name: booking.guest_name,
                 booking_ref: booking.booking_ref,
@@ -392,8 +394,11 @@ export async function PUT(request: Request) {
                 property_email: info.propertyEmail,
                 property_phone: info.propertyPhone,
                 property_website: info.propertyWebsite,
+                property_address: address,
+                property_name: info.propertyName,
               };
-              const html = `<div style="font-family:Georgia,serif;max-width:600px;margin:0 auto;background:#0A0D0C;color:#fff;padding:48px 40px;border-radius:12px">${applyTemplate(template.body, vars).replace(/\n/g, "<br/>")}</div>`;
+              const bodyHtml = applyTemplate(template.body, vars).replace(/\n/g, "<br>");
+              const html = brandedEmailHtml(bodyHtml, { ...info, propertyAddress: address });
               await sendEmail({ to: booking.email, subject: template.subject, html });
             }
           } catch (e) { console.error("[admin] confirmation email failed:", e); }

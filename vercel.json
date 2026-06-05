@@ -1,6 +1,6 @@
 {
   "crons": [{
-    "path": "/api/pms/sync",
+    "path": "/api/cron/email-triggers",
     "schedule": "0 6 * * *"
   }]
 }
