@@ -25,14 +25,23 @@ async function getTemplate(event: string): Promise<{ subject: string; body: stri
   } catch { return null; }
 }
 
+function formatDate(d: any): string {
+  if (!d) return "";
+  const date = new Date(d);
+  if (!isNaN(date.getTime())) {
+    return date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  }
+  return String(d).slice(0, 10);
+}
+
 async function sendTemplate(template: { subject: string; body: string }, booking: any, settings: Record<string, string>, to: string): Promise<boolean> {
   const info = settingsFromMap(settings);
   const address = settings.hotel_address || "Gate no 13, Dal Lake Boulevard Road, Srinagar, 190001, Jammu & Kashmir, India";
   const vars: Record<string, string> = {
     guest_name: booking.guest_name || "Guest",
     booking_ref: booking.booking_ref || "",
-    check_in: booking.check_in ? String(booking.check_in).slice(0, 10) : "",
-    check_out: booking.check_out ? String(booking.check_out).slice(0, 10) : "",
+    check_in: formatDate(booking.check_in),
+    check_out: formatDate(booking.check_out),
     room_name: booking.room_name || "Room",
     amount: String(booking.amount || 0),
     property_email: info.propertyEmail,

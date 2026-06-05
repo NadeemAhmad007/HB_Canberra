@@ -10,6 +10,15 @@ function isMissingTableError(e: unknown): boolean {
   return msg.includes("relation") && msg.includes("does not exist");
 }
 
+function formatDate(d: any): string {
+  if (!d) return "";
+  const date = new Date(d);
+  if (!isNaN(date.getTime())) {
+    return date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  }
+  return String(d).slice(0, 10);
+}
+
 import {
   getAllBookings,
   getRooms,
@@ -234,8 +243,8 @@ export async function PUT(request: Request) {
                   const vars: Record<string, string> = {
                     guest_name: booking.guest_name,
                     booking_ref: booking.booking_ref,
-                    check_in: booking.check_in,
-                    check_out: booking.check_out,
+                    check_in: formatDate(booking.check_in),
+                    check_out: formatDate(booking.check_out),
                     room_name: booking.room_name || "Room",
                     amount: String(booking.amount || 0),
                     property_email: info.propertyEmail,
@@ -446,8 +455,8 @@ export async function PUT(request: Request) {
               const vars: Record<string, string> = {
                 guest_name: booking.guest_name,
                 booking_ref: booking.booking_ref,
-                check_in: booking.check_in,
-                check_out: booking.check_out,
+                check_in: formatDate(booking.check_in),
+                check_out: formatDate(booking.check_out),
                 room_name: booking.room_name || "Room",
                 amount: String(booking.amount || 0),
                 property_email: info.propertyEmail,
