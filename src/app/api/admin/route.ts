@@ -214,9 +214,9 @@ export async function PUT(request: Request) {
               if (!existing) {
                 const settings = await getSettings();
                 const taxRate = (await getTaxRate()) / 100;
-                const subtotal = booking.amount;
-                const tax = Math.round(subtotal * taxRate);
-                const total = subtotal + tax;
+                const total = booking.amount;
+                const subtotal = Math.round(total / (1 + taxRate));
+                const tax = total - subtotal;
                 const items = [
                   { description: `${booking.room_name || "Room"} × ${booking.units} unit(s) × ${booking.nights} night(s)`, amount: Math.round(subtotal / Math.max(1, booking.nights)), qty: booking.units * booking.nights },
                 ];
@@ -427,9 +427,9 @@ export async function PUT(request: Request) {
           if (!existing) {
             const settings = await getSettings();
             const taxRate = (await getTaxRate()) / 100;
-            const subtotal = booking.amount;
-            const tax = Math.round(subtotal * taxRate);
-            const total = subtotal + tax;
+            const total = booking.amount;
+            const subtotal = Math.round(total / (1 + taxRate));
+            const tax = total - subtotal;
             const items = [
               { description: `${booking.room_name || "Room"} × ${booking.units} unit(s) × ${booking.nights} night(s)`, amount: Math.round(subtotal / Math.max(1, booking.nights)), qty: booking.units * booking.nights },
             ];

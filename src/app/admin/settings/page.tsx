@@ -61,7 +61,11 @@ export default function SettingsPage() {
 
     const [propRes, settRes] = await Promise.all([
       fetch("/api/admin", { method: "PUT", headers: h(), body: JSON.stringify({ resource: "property", data: propertyData }) }),
-      fetch("/api/admin/settings", { method: "PUT", headers: h(), body: JSON.stringify(settingsData) }),
+      fetch("/api/admin/settings", { method: "PUT", headers: h(), body: JSON.stringify({
+        ...settingsData,
+        tax_rate: data["tax_rate"] || "",
+        currency: data["currency"] || "",
+      }) }),
     ]);
 
     if (!propRes.ok || !settRes.ok) {
