@@ -44,6 +44,7 @@ import {
   getInvoices,
   createInvoice,
   updateInvoiceStatus,
+  getInvoiceById,
   updateBookingStatus,
   bulkUpdateBookingStatus,
   getAvailableUnits,
@@ -57,6 +58,8 @@ import {
   transitionBookingStatus,
 } from "@/lib/db";
 import { applyTemplate, sendEmail, settingsFromMap, brandedEmailHtml } from "@/lib/email";
+import { generateInvoicePdf } from "@/lib/invoice-pdf";
+import { getBankDetails } from "@/lib/payments";
 import { neon } from "@neondatabase/serverless";
 import { notifyAdminNewBooking } from "@/lib/notify";
 
@@ -212,7 +215,7 @@ export async function PUT(request: Request) {
             try {
               const existing = await getInvoiceByBooking(bookingRef);
               if (!existing) {
-                const settings = await getSettings();
+                const tSettings = await getSettings();
                 const taxRate = (await getTaxRate()) / 100;
                 const total = booking.amount;
                 const subtotal = Math.round(total / (1 + taxRate));
@@ -229,6 +232,8 @@ export async function PUT(request: Request) {
                   status: "sent",
                 });
                 invoiceId = inv?.id ?? null;
+              } else {
+                invoiceId = existing.id;
               }
             } catch (e) { console.error("[admin] auto-invoice on status-confirmed failed:", e); }
 
@@ -257,9 +262,29 @@ export async function PUT(request: Request) {
                   };
                   const bodyHtml = applyTemplate(template.body, vars).replace(/\n/g, "<br>");
                   const html = brandedEmailHtml(bodyHtml, { ...info, propertyAddress: address });
-                  await sendEmail({ to: booking.email, subject: template.subject, html });
+
+                  // Attach invoice PDF if available
+                  const attachments: { filename: string; content: Buffer }[] = [];
+                  if (invoiceId) {
+                    try {
+                      const inv = await getInvoiceById(invoiceId);
+                      if (inv) {
+                        const bank = getBankDetails(settings);
+                        const paid = await (await import("@/lib/db")).getTotalPaid(bookingRef).catch(() => 0);
+                        const pdfBuf = await generateInvoicePdf({ invoice: inv, booking, settings, bank, paid });
+                        attachments.push({ filename: `Invoice_${inv.invoice_no}.pdf`, content: pdfBuf });
+                      }
+                    } catch (e) { console.error("[admin] invoice PDF generation failed:", e); }
+                  }
+
+                  const res = await sendEmail({ to: booking.email, subject: template.subject, html, attachments });
+                  console.log("[admin] confirmation email (booking-status) sent to", booking.email, "result:", res.ok);
+                } else {
+                  console.warn("[admin] booking_confirmed template not found or inactive — email not sent");
                 }
               } catch (e) { console.error("[admin] confirmation email on status-confirmed failed:", e); }
+            } else {
+              console.warn("[admin] confirmation email skipped — no email for booking", bookingRef);
             }
           }
         }
@@ -425,7 +450,7 @@ export async function PUT(request: Request) {
         try {
           const existing = await getInvoiceByBooking(bookingRef);
           if (!existing) {
-            const settings = await getSettings();
+            const tSettings = await getSettings();
             const taxRate = (await getTaxRate()) / 100;
             const total = booking.amount;
             const subtotal = Math.round(total / (1 + taxRate));
@@ -442,10 +467,12 @@ export async function PUT(request: Request) {
               status: "sent",
             });
             invoiceId = inv?.id ?? null;
+          } else {
+            invoiceId = existing.id;
           }
         } catch (e) { console.error("[admin] auto-invoice failed:", e); }
 
-        // Send booking_confirmed email
+        // Send booking_confirmed email with invoice PDF attached
         if (booking.email) {
           try {
             const template = await getEmailTemplate("booking_confirmed");
@@ -471,9 +498,29 @@ export async function PUT(request: Request) {
               };
               const bodyHtml = applyTemplate(template.body, vars).replace(/\n/g, "<br>");
               const html = brandedEmailHtml(bodyHtml, { ...info, propertyAddress: address });
-              await sendEmail({ to: booking.email, subject: template.subject, html });
+
+              // Attach invoice PDF
+              const attachments: { filename: string; content: Buffer }[] = [];
+              if (invoiceId) {
+                try {
+                  const inv = await getInvoiceById(invoiceId);
+                  if (inv) {
+                    const bank = getBankDetails(settings);
+                    const paid = await (await import("@/lib/db")).getTotalPaid(bookingRef).catch(() => 0);
+                    const pdfBuf = await generateInvoicePdf({ invoice: inv, booking, settings, bank, paid });
+                    attachments.push({ filename: `Invoice_${inv.invoice_no}.pdf`, content: pdfBuf });
+                  }
+                } catch (e) { console.error("[admin] invoice PDF generation failed:", e); }
+              }
+
+              const res = await sendEmail({ to: booking.email, subject: template.subject, html, attachments });
+              console.log("[admin] confirmation email sent to", booking.email, "result:", res.ok);
+            } else {
+              console.warn("[admin] booking_confirmed template not found or inactive — email not sent");
             }
           } catch (e) { console.error("[admin] confirmation email failed:", e); }
+        } else {
+          console.warn("[admin] confirmation email skipped — no email for booking", bookingRef);
         }
 
         return NextResponse.json({ ok: true, invoiceId });

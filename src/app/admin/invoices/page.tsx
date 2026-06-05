@@ -127,7 +127,7 @@ export default function InvoicesPage() {
                       <tr key={i} className="border-b border-white/5"><td className="py-1">{item.description}</td><td className="py-1 text-right">{item.qty}</td><td className="py-1 text-right">₹{(item.amount * item.qty).toLocaleString()}</td></tr>
                     ))}
                     <tr className="text-white/50"><td className="pt-2">Subtotal</td><td /><td className="pt-2 text-right">₹{selected.subtotal?.toLocaleString()}</td></tr>
-                    <tr className="text-white/50"><td>Tax (12%)</td><td /><td className="text-right">₹{selected.tax?.toLocaleString()}</td></tr>
+                    <tr className="text-white/50"><td>Tax ({(taxRate * 100).toFixed(1)}%)</td><td /><td className="text-right">₹{selected.tax?.toLocaleString()}</td></tr>
                     <tr className="text-white font-medium"><td className="pb-0">Total</td><td /><td className="pb-0 text-right">₹{selected.total?.toLocaleString()}</td></tr>
                   </tbody>
                 </table>

@@ -15,6 +15,7 @@ export async function sendEmail(opts: {
   subject: string;
   html: string;
   from?: string;
+  attachments?: { filename: string; content: Buffer }[];
 }): Promise<{ ok: boolean; id?: string; error?: string }> {
   if (!process.env.RESEND_API_KEY) {
     console.warn("[email] RESEND_API_KEY not set, skipping send to", opts.to);
@@ -23,7 +24,14 @@ export async function sendEmail(opts: {
   try {
     const fallback = process.env.EMAIL_FROM || "onboarding@resend.dev";
     const from = opts.from || (fallback.includes("<") ? fallback : `Houseboat Canberra <${fallback}>`);
-    const res = await client().emails.send({ from, to: opts.to, subject: opts.subject, html: opts.html });
+    const payload: any = { from, to: opts.to, subject: opts.subject, html: opts.html };
+    if (opts.attachments?.length) {
+      payload.attachments = opts.attachments.map((a) => ({
+        filename: a.filename,
+        content: a.content.toString("base64"),
+      }));
+    }
+    const res = await client().emails.send(payload);
     if ((res as any).error) return { ok: false, error: (res as any).error.message || "Resend error" };
     return { ok: true, id: (res as any).data?.id };
   } catch (e) {
@@ -106,6 +114,7 @@ export function brandedEmailHtml(bodyHtml: string, vars: {
         <td style="vertical-align:top;padding-right:20px;padding-bottom:16px">
           <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.35);margin-bottom:6px">Address</div>
           <div>${escapeHtml(address)}</div>
+          <div style="margin-top:4px"><a href="https://maps.google.com/?q=${escapeHtml(address)}" target="_blank" style="color:#C8A86B;font-size:11px;text-decoration:none">View on Google Maps →</a></div>
         </td>
         <td style="vertical-align:top;padding-bottom:16px">
           <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.35);margin-bottom:6px">Contact</div>
