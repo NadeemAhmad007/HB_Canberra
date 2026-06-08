@@ -7,7 +7,7 @@ export const maxDuration = 120;
 function checkAuth(request: Request): boolean {
   const auth = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) return true;
+  if (!cronSecret) return false;
   if (!auth || !auth.startsWith("Bearer ")) return false;
   return auth.slice(7) === cronSecret;
 }

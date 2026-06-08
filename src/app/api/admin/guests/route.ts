@@ -10,7 +10,7 @@ function getSql() {
 function checkAuth(request: Request) {
   const auth = request.headers.get("authorization");
   const password = process.env.ADMIN_PASSWORD;
-  if (!password) return true;
+  if (!password) return false;
   if (!auth || !auth.startsWith("Bearer ")) return false;
   return auth.slice(7) === password;
 }

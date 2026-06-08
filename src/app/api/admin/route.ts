@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { checkCSRF } from "@/lib/auth";
 
 function isMissingColumnError(e: unknown): boolean {
   const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
@@ -61,7 +62,7 @@ import {
 import { applyTemplate, sendEmail, settingsFromMap, brandedEmailHtml } from "@/lib/email";
 import { generateInvoicePdf } from "@/lib/invoice-pdf";
 import { getBankDetails } from "@/lib/payments";
-import { neon } from "@neondatabase/serverless";
+import { neon, Pool } from "@neondatabase/serverless";
 import { notifyAdminNewBooking } from "@/lib/notify";
 
 function getSql() {
@@ -77,13 +78,14 @@ function unauthorized() {
 function checkAuth(request: Request) {
   const auth = request.headers.get("authorization");
   const password = process.env.ADMIN_PASSWORD;
-  if (!password) return true;
+  if (!password) return false;
   if (!auth || !auth.startsWith("Bearer ")) return false;
   return auth.slice(7) === password;
 }
 
 export async function GET(request: Request) {
   if (!checkAuth(request)) return unauthorized();
+  if (!checkCSRF(request)) return NextResponse.json({ error: "CSRF check failed" }, { status: 403 });
   const url = new URL(request.url);
   const resource = url.searchParams.get("resource") || "bookings";
 
@@ -167,12 +169,14 @@ export async function GET(request: Request) {
     }
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error("[admin GET] error:", msg);
+    return NextResponse.json({ error: "Request failed" }, { status: 500 });
   }
 }
 
 export async function PUT(request: Request) {
   if (!checkAuth(request)) return unauthorized();
+  if (!checkCSRF(request)) return NextResponse.json({ error: "CSRF check failed" }, { status: 403 });
 
   try {
     const body = await request.json();
@@ -338,13 +342,17 @@ export async function PUT(request: Request) {
       }
       case "record-payment": {
         const { bookingRef, amount, method, reference, notes } = data;
-        if (!bookingRef || !amount) {
+        if (!bookingRef || amount === undefined || amount === null) {
           return NextResponse.json({ error: "bookingRef and amount required" }, { status: 400 });
+        }
+        const payAmt = Number(amount);
+        if (!Number.isFinite(payAmt) || payAmt <= 0 || payAmt > 1_000_000) {
+          return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
         }
         const booking = await getBookingByRef(bookingRef);
         if (!booking) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
         try {
-          await recordPayment({ booking_ref: bookingRef, amount, method, reference, notes, recorded_by: "admin" });
+          await recordPayment({ booking_ref: bookingRef, amount: payAmt, method, reference, notes, recorded_by: "admin" });
         } catch (e) {
           if (isMissingTableError(e) || isMissingColumnError(e)) {
             console.warn("[admin] recordPayment skipped (table/column missing):", e instanceof Error ? e.message : e);
@@ -352,7 +360,7 @@ export async function PUT(request: Request) {
             throw e;
           }
         }
-        const newPaid = (booking.amount_paid || 0) + amount;
+        const newPaid = (booking.amount_paid || 0) + payAmt;
         const newStatus = newPaid >= booking.amount ? "paid" : "partial";
         const sql = getSql();
         try {
@@ -361,8 +369,8 @@ export async function PUT(request: Request) {
           if (!isMissingColumnError(e)) throw e;
           try { await sql`UPDATE bookings SET updated_at = now() WHERE booking_ref = ${bookingRef}`; } catch {}
         }
-        try { await addActivityLog("payment_recorded", "booking", bookingRef, `Payment of ₹${amount} recorded (${method || "bank"})${reference ? ` ref ${reference}` : ""}`); } catch (e) { console.error("[admin] activity log failed:", e); }
-        try { await upsertGuestFromBooking({ name: booking.guest_name, email: booking.email, phone: booking.phone, amount_spent: amount }); } catch (e) { console.error("[admin] guest upsert failed:", e); }
+        try { await addActivityLog("payment_recorded", "booking", bookingRef, `Payment of ₹${payAmt} recorded (${method || "bank"})${reference ? ` ref ${reference}` : ""}`); } catch (e) { console.error("[admin] activity log failed:", e); }
+        try { await upsertGuestFromBooking({ name: booking.guest_name, email: booking.email, phone: booking.phone, amount_spent: payAmt }); } catch (e) { console.error("[admin] guest upsert failed:", e); }
         return NextResponse.json({ ok: true, amount_paid: newPaid, payment_status: newStatus });
       }
       case "checkin-id-proof": {
@@ -400,7 +408,12 @@ export async function PUT(request: Request) {
         if (booking.status === "cancelled") {
           return NextResponse.json({ error: "Cannot mark paid: booking is cancelled" }, { status: 409 });
         }
-        console.log("[admin] mark-paid start", { bookingRef, currentStatus: booking.status });
+
+        const payAmount = amount !== undefined && amount !== null ? Number(amount) : (booking.amount - (booking.amount_paid || 0));
+        if (!Number.isFinite(payAmount) || payAmount <= 0 || payAmount > 1_000_000) {
+          return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
+        }
+        const payMethod = method || "bank";
 
         let trans: { ok: boolean; reason?: string; from?: string } = { ok: true, from: booking.status };
         try {
@@ -410,32 +423,48 @@ export async function PUT(request: Request) {
           }
         } catch (e) { console.error("[admin] mark-paid transition check failed:", (e as Error).message); }
 
-        if (trans.ok) {
-          try {
-            const available = await getAvailableUnits(booking.room_id, booking.check_in, booking.check_out);
-            const currentBooked = await sql`SELECT COALESCE(SUM(units), 0) AS u FROM bookings WHERE room_id = ${booking.room_id} AND booking_ref != ${bookingRef} AND check_in < ${booking.check_out} AND check_out > ${booking.check_in} AND status != 'cancelled'` as unknown as Array<{ u: string }>;
-            const otherBooked = parseInt(currentBooked[0]?.u) || 0;
-            if (otherBooked + booking.units > available + booking.units) {
-              return NextResponse.json({ error: "Overbooking prevented: no units available for these dates" }, { status: 409 });
-            }
-          } catch (e) { console.error("[admin] mark-paid availability check failed:", (e as Error).message); }
-        }
-
-        const payAmount = amount || booking.amount - (booking.amount_paid || 0);
-        const payMethod = method || "bank";
-
+        const txPool = new Pool({ connectionString: process.env.DATABASE_URL });
+        const txClient = await txPool.connect();
         try {
-          await sql`UPDATE bookings SET payment_status = 'paid', payment_gateway = ${payMethod}, status = 'confirmed', updated_at = now() WHERE booking_ref = ${bookingRef}`;
-        } catch (e) {
-          if (isMissingColumnError(e)) {
-            try {
-              await sql`UPDATE bookings SET status = 'confirmed', updated_at = now() WHERE booking_ref = ${bookingRef}`;
-            } catch (e2) {
-              throw e2;
-            }
-          } else {
-            throw e;
+          await txClient.query("BEGIN");
+          const overlapping = await txClient.query(
+            `SELECT COALESCE(SUM(units), 0) AS booked FROM bookings
+             WHERE room_id = $1 AND booking_ref != $2
+             AND check_in < $3 AND check_out > $4
+             AND status != 'cancelled'
+             FOR UPDATE`,
+            [booking.room_id, bookingRef, booking.check_out, booking.check_in]
+          );
+          const blockedRes = await txClient.query(
+            `SELECT COUNT(DISTINCT unit_index) AS cnt FROM blocked_dates
+             WHERE room_id = $1 AND date >= $2::date AND date < $3::date`,
+            [booking.room_id, String(booking.check_in).slice(0, 10), String(booking.check_out).slice(0, 10)]
+          );
+          const totalUnits = booking.room_units || 1;
+          const bookedUnits = parseInt(overlapping.rows[0]?.booked) || 0;
+          const blockedUnits = parseInt(blockedRes.rows[0]?.cnt) || 0;
+          if (bookedUnits + (booking.units || 1) > totalUnits - blockedUnits) {
+            throw new Error("Overbooking");
           }
+          await txClient.query(
+            `UPDATE bookings SET payment_status = 'paid', payment_gateway = $1, status = 'confirmed', updated_at = now()
+             WHERE booking_ref = $2`,
+            [payMethod, bookingRef]
+          );
+          await txClient.query("COMMIT");
+        } catch (e) {
+          await txClient.query("ROLLBACK").catch(() => {});
+          if ((e as Error).message === "Overbooking") {
+            return NextResponse.json({ error: "Overbooking prevented: no units available for these dates" }, { status: 409 });
+          }
+          if (isMissingColumnError(e)) {
+            try { const f = getSql(); await f`UPDATE bookings SET status = 'confirmed', updated_at = now() WHERE booking_ref = ${bookingRef}`; } catch {}
+          } else {
+            console.error("[admin] mark-paid transaction failed:", (e as Error).message);
+            return NextResponse.json({ error: "Failed to process payment" }, { status: 500 });
+          }
+        } finally {
+          txClient.release();
         }
 
         try {
@@ -540,12 +569,13 @@ export async function PUT(request: Request) {
     const msg = error instanceof Error ? error.message : "Unknown error";
     const stack = error instanceof Error ? error.stack : "";
     console.error("[admin PUT] error:", msg, "\nStack:", stack);
-    return NextResponse.json({ error: msg, stack }, { status: 500 });
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   if (!checkAuth(request)) return unauthorized();
+  if (!checkCSRF(request)) return NextResponse.json({ error: "CSRF check failed" }, { status: 403 });
 
   try {
     const body = await request.json();
@@ -582,6 +612,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error("[admin POST] error:", msg);
+    return NextResponse.json({ error: "Request failed" }, { status: 500 });
   }
 }

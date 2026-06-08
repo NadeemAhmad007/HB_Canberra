@@ -18,10 +18,9 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const auth = request.headers.get("authorization");
   const password = process.env.ADMIN_PASSWORD;
-  if (password) {
-    if (!auth || !auth.startsWith("Bearer ") || auth.slice(7) !== password) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!password) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!auth || !auth.startsWith("Bearer ") || auth.slice(7) !== password) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
     let maxTs: number = 0;

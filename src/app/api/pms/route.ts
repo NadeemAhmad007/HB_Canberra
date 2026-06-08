@@ -16,6 +16,7 @@ import {
 } from "@/lib/db";
 import { brandedEmailHtml, sendEmail } from "@/lib/email";
 import { notifyAdminNewBooking } from "@/lib/notify";
+import { checkRateLimit } from "@/lib/auth";
 
 const FALLBACK_ROOMS = [
   { id: 1, name: "Deluxe Room", description: "Elegant lake-view room with handcrafted Kashmiri furnishings, overlooking the pristine waters of Dal Lake.", amenities: ["Lake View", "King Bed", "Ensuite Bathroom", "Heating", "Mini Bar", "WiFi", "Tea/Coffee Maker"], units: 2, base_price: 11500, max_adults: 2, max_children: 2, child_policy: "1 child above 10, 2 children below 10", active: true, status: "available", tour_url: "https://tour.panoee.net/iframe/690596e5eac32b09e73f0ee0" },
@@ -128,6 +129,12 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const forwarded = request.headers.get("x-forwarded-for") || "unknown";
+  const ip = forwarded.split(",")[0]?.trim() || "unknown";
+  if (!checkRateLimit(`pms-booking:${ip}`, 5, 60 * 1000)) {
+    return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
+  }
+
   try {
     const body = await request.json();
     const { guestName, phone, email, roomId, mealCode, adults, children, units, checkIn, checkOut, nights, amount, notes, tcAccepted } = body;
